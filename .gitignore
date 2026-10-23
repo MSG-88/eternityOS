@@ -1,0 +1,30 @@
+# live-build generated trees (only our inputs under config/ are tracked)
+config/*
+!config/auto/
+!config/archives/
+!config/package-lists/
+!config/hooks/
+!config/includes.chroot/
+!config/bootloaders/
+config/includes.chroot/opt/eternity/models/*.gguf
+config/includes.chroot/opt/eternity/models/*.LICENSE
+config/includes.chroot/opt/eternity/models/models.json
+config/includes.chroot/opt/eternity/models/SHA256SUMS
+config/includes.chroot/usr/lib/eternity/expect/
+config/includes.chroot/usr/lib/eternity/smoke.sh
+config/includes.chroot/usr/lib/eternity/requirements.lock
+
+# build outputs
+*.iso
+*.log
+*.vhdx
+cache/
+build/
+.build/
+chroot/
+binary/
+local/
+out/
+tests/out/
+.superpowers/
+__pycache__/
