@@ -1,6 +1,5 @@
 # live-build generated trees (only our inputs under config/ are tracked)
 config/*
-!config/auto/
 !config/archives/
 !config/package-lists/
 !config/hooks/

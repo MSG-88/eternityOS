@@ -1,0 +1,16 @@
+[Unit]
+Description=Eternity 08 self-test (runs only with eternity.test on the kernel command line)
+ConditionKernelCommandLine=eternity.test
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/eternity/smoke.sh
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/ttyS0
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target

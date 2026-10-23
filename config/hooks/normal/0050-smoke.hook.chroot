@@ -1,0 +1,5 @@
+#!/bin/sh
+# Enable the self-test unit. It only runs when the kernel command line has `eternity.test`.
+set -e
+chmod 755 /usr/lib/eternity/smoke.sh
+systemctl enable eternity-smoke.service
