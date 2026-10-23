@@ -1,0 +1,32 @@
+#!/bin/sh
+# Eternity 08 system identity: os-release, issue, motd, hostname.
+set -e
+
+SRC=/usr/share/eternity/os-release
+
+# live-build replaces /etc/os-release with a regular file carrying IMAGE_ID/BUILD_ID.
+# Keep those lines, replace everything else with the Eternity 08 identity.
+extra=$(grep -E '^(IMAGE_ID|IMAGE_VERSION|BUILD_ID)=' /etc/os-release 2>/dev/null || true)
+
+# Protect /usr/lib/os-release from base-files upgrades: divert the packaged file aside.
+if ! dpkg-divert --list /usr/lib/os-release | grep -q 'local diversion'; then
+    dpkg-divert --quiet --local --rename --add /usr/lib/os-release
+fi
+{ cat "$SRC"; [ -n "$extra" ] && printf '%s\n' "$extra"; } > /usr/lib/os-release
+
+# live-build's divert of /etc/os-release is removed later by chroot_hacks with --no-rename;
+# make /etc/os-release the usual symlink now so both point at the branded file.
+rm -f /etc/os-release
+ln -s ../usr/lib/os-release /etc/os-release
+
+# Console banner, motd, hostname
+printf 'Eternity 08 0.1.0 \\n \\l\n\n' > /etc/issue
+printf 'Eternity 08 0.1.0\n' > /etc/issue.net
+printf '\n  Eternity 08 0.1.0 (Genesis)  -  local AI ready: run eternity-chat\n\n' > /etc/motd
+rm -f /etc/update-motd.d/10-uname
+echo eternity > /etc/hostname
+
+# Default dark-friendly prompt and fastfetch for root too
+install -m 644 /etc/skel/.bashrc /root/.bashrc
+mkdir -p /root/.config/fastfetch
+install -m 644 /etc/skel/.config/fastfetch/config.jsonc /root/.config/fastfetch/config.jsonc
