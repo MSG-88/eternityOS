@@ -1,8 +1,9 @@
 # Eternity 08 — Phase 1 Design
 
 Date: 2026-10-23
-Status: draft, awaiting approval
+Status: approved by owner 2026-10-23
 Owner: Muthu
+Audience: personal use on the owner's own machines; not a public release.
 
 ## 1. Intent
 
@@ -59,7 +60,10 @@ at build time, not a cached or aging image. This is a hard requirement.
   the image.
 - It fails to boot on the owner's laptop because of Secure Boot or missing
   firmware.
-- The image grows past 6 GB, or the desktop is sluggish on 4 GB of RAM.
+- The desktop is sluggish on 4 GB of RAM, or the system is hard to use.
+  (The owner set no hard ISO size cap: "no restrictions on the size as long
+  as the OS is lightweight and easy to use." Lightweight means the running
+  OS, not the download.)
 - The build is a pile of manual steps. One script, from clean checkout to ISO.
 - The base is stale: an older Debian release or kernel than what was
   available on build day.
@@ -75,7 +79,13 @@ at build time, not a cached or aging image. This is a hard requirement.
   Hyper-V VM and live USB, not dual boot.
 - Target class: 64-bit x86 PC. Minimum 4 GB RAM for the OS; 8 GB recommended
   for the default model.
-- Everything shipped is open source or openly licensed (models included).
+- **[owner]** Everything shipped is open source. Models must be under a
+  true open licence (Apache 2.0, MIT, or similar). Meta's Llama community
+  licence does not qualify. The builder researches and picks the most
+  effective open-licensed models for the first iteration.
+- **[owner]** Personal use only. No public distribution, so licence
+  packaging is minimal (ship licence texts next to the models; no more),
+  and the build only has to be reproducible on the owner's WSL2 instance.
 
 ## 6. Decisions made (how it gets made)
 
@@ -93,6 +103,14 @@ are the designer's choices; the owner can override any of them.
   than the stock 6.12, to satisfy "latest" and for newer hardware support.
   The build script must install whichever backports kernel is newest on
   build day, not a pinned version.
+- **[call]** Booting wins over "newest". If the backports kernel fails to
+  boot on the owner's laptop or in Hyper-V, the build falls back to the
+  stock Debian 13 signed kernel and records the reason in `docs/`.
+- **[call]** Secure Boot check comes first. Microsoft retired its 2011 UEFI
+  signing certificate for new bootloaders in mid-2026. Before building, the
+  builder verifies that the laptop firmware and the Hyper-V Secure Boot
+  template trust the certificate that signs Debian 13's current shim. If
+  they don't, the owner is told before any firmware update is applied.
 - **[call]** `main contrib non-free non-free-firmware` enabled, with the
   `firmware-linux` metapackages (including AMD GPU and common Wi-Fi
   firmware) in the image, so laptops get working graphics and wireless.
@@ -177,13 +195,14 @@ are the designer's choices; the owner can override any of them.
 - **[call]** Models shipped in the image, under `/opt/eternity/models`, in
   GGUF format:
   - Default: a 4B-class instruct model at Q4_K_M quantization (about 2.5 GB).
-    Candidate: Qwen3-4B. Runs on 8 GB RAM at a few tokens per second on the
-    owner's CPU.
-  - Small: a 1B-class instruct model at Q4_K_M (under 1 GB). Candidate:
-    Qwen3-1.7B or Llama 3.2 1B. For 4 GB machines.
-  The builder confirms the exact models and licences on build day (openly
-  licensed, redistributable) and records them in `ai/models.manifest` with
-  source URLs and SHA-256 checksums.
+    Leading candidate: Qwen3-4B (Apache 2.0). Runs on 8 GB RAM at a few
+    tokens per second on the owner's CPU.
+  - Small: a 1B-to-2B-class instruct model at Q4_K_M (about 1 to 1.3 GB).
+    Leading candidate: Qwen3-1.7B (Apache 2.0). For 4 GB machines.
+  **[owner]** The builder researches current open-licensed small models on
+  build day and picks the most effective ones for the first iteration;
+  Apache 2.0 / MIT only. Choices, source URLs, licence texts, and SHA-256
+  checksums are recorded in `ai/models.manifest`.
 - **[call]** User-facing entry point: `eternity-chat`, a small command that
   starts an interactive chat with the default model (or `--small`) using
   llama.cpp, and `eternity-ai status`, which reports installed models,
@@ -196,8 +215,9 @@ are the designer's choices; the owner can override any of them.
 
 ### 6.5 Size and performance budget
 
-- ISO: at most 6 GB. Rough budget: base plus desktop 1.5 GB, ML venv 2 GB,
-  models 3.5 GB, compressed by squashfs to roughly 5 GB.
+- ISO: no hard cap (owner's decision). Expected 6 to 7 GB: base plus desktop
+  about 1.7 GB compressed, ML venv about 0.8 GB compressed, models 3.5 to
+  4 GB uncompressible. Nothing is cut for size.
 - Idle RAM after login: under 700 MB.
 - Boot to login screen in a VM: under 30 seconds.
 
