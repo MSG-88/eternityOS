@@ -42,6 +42,16 @@ rsync -a --delete \
 mkdir -p "$BUILD_DIR/config/includes.chroot/opt/eternity/models" "$BUILD_DIR/out"
 cd "$BUILD_DIR"
 
+# /mnt/c presents everything as 0777; normalise so the image gets sane modes.
+log "Normalising file modes"
+find config/includes.chroot config/hooks config/package-lists config/archives config/bootloaders \
+     auto tests ai branding -type d -exec chmod 755 {} + 2>/dev/null || true
+find config/includes.chroot config/package-lists config/archives config/bootloaders ai branding tests \
+     -type f -exec chmod 644 {} + 2>/dev/null || true
+chmod 755 build.sh auto/* config/hooks/*/* tests/*.sh 2>/dev/null || true
+find config/includes.chroot/usr/lib/eternity config/includes.chroot/usr/local/bin \
+     -type f \( -name '*.sh' -o ! -name '*.*' \) -exec chmod 755 {} + 2>/dev/null || true
+
 log "Staging in-image test files"
 install -D -m 755 tests/smoke.sh config/includes.chroot/usr/lib/eternity/smoke.sh
 if [ -d tests/expect ]; then

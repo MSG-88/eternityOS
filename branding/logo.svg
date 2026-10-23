@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300">
+  <!-- Eternity 08 wordmark. Palette: branding/colors.md -->
+  <circle cx="1030" cy="150" r="118" fill="none" stroke="#0E8FA8" stroke-width="6" opacity="0.9"/>
+  <circle cx="1030" cy="150" r="134" fill="none" stroke="#19D3F5" stroke-width="1.5" opacity="0.35"/>
+  <text x="70" y="203" font-family="Inter, 'Inter Display', sans-serif" font-weight="700" font-size="150" letter-spacing="14" fill="#E6F1FF">ETERNITY</text>
+  <text x="1030" y="203" text-anchor="middle" font-family="Inter, 'Inter Display', sans-serif" font-weight="800" font-size="150" fill="#19D3F5">08</text>
+</svg>
