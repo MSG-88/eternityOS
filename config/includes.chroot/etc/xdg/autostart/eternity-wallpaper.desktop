@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Eternity 08 wallpaper
+Comment=Applies the Eternity 08 wallpaper to all monitors
+Exec=/usr/lib/eternity/set-wallpaper.sh
+OnlyShowIn=XFCE;
+NoDisplay=true
+StartupNotify=false
+X-XFCE-Autostart-Override=true
