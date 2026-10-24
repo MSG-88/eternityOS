@@ -36,3 +36,9 @@ mokutil
 file
 util-linux-extra
 fastfetch
+nftables
+apparmor
+apparmor-utils
+apparmor-profiles
+apparmor-profiles-extra
+unattended-upgrades

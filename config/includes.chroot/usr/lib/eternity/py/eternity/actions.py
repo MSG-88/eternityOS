@@ -148,6 +148,21 @@ def t_find_files(args: dict) -> ActionResult:
     return ActionResult(True, f"{len(paths)} matches for '{pattern}'", {"paths": paths})
 
 
+def t_search_meaning(args: dict) -> ActionResult:
+    """Search by meaning over the indexed home folders (eternity.find)."""
+    query = str(args.get("query", "")).strip()
+    if not query:
+        return ActionResult(False, "no query given")
+    from . import find as F
+    idx = F.Index()
+    if idx.count() == 0:
+        idx.build()
+    hits = idx.search(query, k=int(args.get("count", 10)))
+    g = F.group(hits)
+    return ActionResult(True, F.suggestion(g) if hits else "nothing close enough",
+                        {"matches": [{"path": h.path, "kind": h.kind, "when": h.when} for h in hits], "summary": g})
+
+
 def _desktop_entries() -> Dict[str, str]:
     out = {}
     for d in ("/usr/share/applications", os.path.expanduser("~/.local/share/applications")):
@@ -305,6 +320,8 @@ def default_tools() -> List[Tool]:
              obj({"count": {"type": "integer", "description": "how many, default 8"}}), t_list_recent_files, RISK_READ),
         Tool("find_files", "Find files under the home folder whose name contains a pattern.",
              obj({"pattern": {"type": "string"}}, ["pattern"]), t_find_files, RISK_READ),
+        Tool("search_files_by_meaning", "Find the user's files by what they are about (photos from a trip, the spec about X, invoices from March); uses the on-device index.",
+             obj({"query": {"type": "string"}, "count": {"type": "integer"}}, ["query"]), t_search_meaning, RISK_READ),
         Tool("open_app", "Open an installed application by name (for example 'firefox', 'files', 'terminal').",
              obj({"name": {"type": "string"}}, ["name"]), t_open_app, RISK_CHANGE),
         Tool("open_url", "Open a web link in the browser.", obj({"url": {"type": "string"}}, ["url"]), t_open_url, RISK_CHANGE),

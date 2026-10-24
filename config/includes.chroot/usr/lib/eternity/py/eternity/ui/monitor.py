@@ -13,6 +13,7 @@ import cairo
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from .. import cards as C
+from .. import settings as S
 from . import label, load_css, shot
 
 ACCENT = (0x91 / 255, 0x84 / 255, 0xd9 / 255)
@@ -212,7 +213,15 @@ class Monitor(Gtk.Window):
         except (OSError, ValueError):
             pass
         self.s_ai.push(toks if toks else 0)
-        self.s_lat.push(None)
+        lat = None
+        try:
+            with open(os.path.join(S.state_dir(), "frame-ms")) as f:
+                v, ts = f.read().split()
+            if time.time() - float(ts) < 10:
+                lat = float(v)
+        except (OSError, ValueError):
+            pass
+        self.s_lat.push(lat)
         if cpu is not None:
             self.ring.value = cpu
         self.ring.queue_draw()

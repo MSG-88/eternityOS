@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Files · search by meaning
+GenericName=Semantic file search
+Comment=Find files by what they are about, on this device
+Exec=eternity-find
+Icon=eternity
+Terminal=false
+Categories=Utility;FileTools;
+Keywords=files;search;find;semantic;photos;eternity;
+StartupNotify=false

@@ -1,0 +1,35 @@
+#!/bin/sh
+# Eternity 08 security baseline (backlog item 2): firewall default-deny inbound, AppArmor
+# enforced, unattended security updates, kernel hardening. Applies to the live session and
+# to installed systems (the files live in the image).
+set -e
+
+# Firewall: ruleset in /etc/nftables.conf, loaded at boot
+nft -c -f /etc/nftables.conf
+systemctl enable nftables.service
+
+# AppArmor: Debian kernels boot with apparmor=1 security=apparmor; make sure the profiles load
+systemctl enable apparmor.service
+# Enforce the extra profiles that ship in complain mode where the tool is available
+if command -v aa-enforce >/dev/null 2>&1; then
+    for p in /etc/apparmor.d/usr.bin.firefox-esr /etc/apparmor.d/usr.bin.evince; do
+        [ -f "$p" ] && aa-enforce "$p" >/dev/null 2>&1 || true
+    done
+fi
+
+# Security updates install themselves (config in /etc/apt/apt.conf.d/52eternity-unattended)
+systemctl enable unattended-upgrades.service 2>/dev/null || true
+systemctl enable apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+
+# No network daemons listen by default: the image ships openssh-client only. Make sure.
+for s in ssh.service sshd.service avahi-daemon.service cups.service rpcbind.service; do
+    systemctl disable "$s" >/dev/null 2>&1 || true
+done
+
+# The local AI servers bind to 127.0.0.1 only (llama-server.service, eternity-llama user unit)
+grep -q -- '--host 127.0.0.1' /etc/systemd/system/llama-server.service 2>/dev/null || \
+    sed -i 's|ExecStart=\(.*\)llama-server |ExecStart=\1llama-server --host 127.0.0.1 |' /etc/systemd/system/llama-server.service 2>/dev/null || true
+
+chmod 755 /usr/lib/eternity/py 2>/dev/null || true
+chmod -R go-w /usr/lib/eternity 2>/dev/null || true
+chmod 755 /usr/local/bin/eternity-* 2>/dev/null || true

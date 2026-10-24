@@ -4,6 +4,10 @@ set -e
 
 plymouth-set-default-theme -R eternity
 
+# Boot-log lines for the splash (real facts, see /usr/lib/eternity/bootlog.sh)
+chmod 755 /usr/lib/eternity/bootlog.sh
+systemctl enable eternity-bootlog.service >/dev/null 2>&1 || true
+
 if [ -f /etc/default/grub ]; then
     sed -i 's/^GRUB_DISTRIBUTOR=.*/GRUB_DISTRIBUTOR="Eternity 08"/' /etc/default/grub
     grep -q '^GRUB_DISTRIBUTOR=' /etc/default/grub || echo 'GRUB_DISTRIBUTOR="Eternity 08"' >> /etc/default/grub

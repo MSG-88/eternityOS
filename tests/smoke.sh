@@ -158,6 +158,26 @@ check_installer() {
     grep -qs 'EFI/BOOT/grub.cfg' /usr/lib/eternity/post-install.sh || { echo "post-install.sh does not copy grub.cfg to EFI/BOOT"; return 1; }
 }
 
+check_security() {
+    # Backlog item 2: firewall default-deny inbound, AppArmor, unattended security updates, sysctl hardening.
+    [ -s /etc/nftables.conf ] || { echo "/etc/nftables.conf missing"; return 1; }
+    grep -q 'policy drop' /etc/nftables.conf || { echo "nftables input policy is not drop"; return 1; }
+    [ "$(systemctl is-enabled nftables 2>/dev/null)" = enabled ] || { echo "nftables.service not enabled"; return 1; }
+    if command -v nft >/dev/null 2>&1 && systemctl is-active nftables >/dev/null 2>&1; then
+        nft list chain inet filter input 2>/dev/null | grep -q 'policy drop' || { echo "live ruleset has no drop policy on input"; return 1; }
+    fi
+    [ "$(cat /sys/module/apparmor/parameters/enabled 2>/dev/null)" = Y ] || { echo "AppArmor not enabled in the kernel"; return 1; }
+    [ "$(systemctl is-enabled apparmor 2>/dev/null)" = enabled ] || { echo "apparmor.service not enabled"; return 1; }
+    [ -s /etc/apt/apt.conf.d/52eternity-unattended ] || { echo "unattended-upgrades config missing"; return 1; }
+    dpkg -s unattended-upgrades >/dev/null 2>&1 || { echo "unattended-upgrades not installed"; return 1; }
+    [ -s /etc/sysctl.d/60-eternity-hardening.conf ] || { echo "sysctl hardening missing"; return 1; }
+    [ "$(sysctl -n kernel.yama.ptrace_scope 2>/dev/null)" = 1 ] || { echo "ptrace_scope is not 1"; return 1; }
+    ss -H -tln 2>/dev/null | awk '{print $4}' | grep -vE '^(127\.0\.0\.1|\[::1\]|::1):' | grep -q . && { echo "a TCP service listens on a non-loopback address: $(ss -H -tln | awk '{print $4}' | grep -vE '^(127\.0\.0\.1|\[::1\]):' | tr '
+' ' ')"; return 1; }
+    grep -qs -- 'sudo' /usr/lib/eternity/py/eternity/actions.py || { echo "action broker lacks the no-sudo rule"; return 1; }
+    return 0
+}
+
 check_venv() {
     local py=/opt/eternity/venv/bin/python
     [ -x "$py" ] || { echo "venv python missing"; return 1; }

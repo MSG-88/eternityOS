@@ -118,10 +118,6 @@ class Card(Gtk.Box):
         self.pack_start(self.meta, False, False, 0)
         self.extra = label("", "faint", wrap=True)
         self.pack_start(self.extra, False, False, 0)
-        if on_click:
-            ev = Gtk.EventBox()
-            ev.set_visible_window(False)
-            self.on_click = on_click
 
     def set(self, value: str, meta: str = "", extra: str = ""):
         self.value.set_text(value)
@@ -251,7 +247,14 @@ class Shell(Gtk.Window):
                           "\n".join(f"{f['name']}  ·  {f['when']}" for f in rec[1:]))
         self.s_clock.set_text(td["time"])
         lat = sum(self.frame_ms) / len(self.frame_ms) if self.frame_ms else 0
-        self.s_live.set_text(f"● live · {lat:.0f} ms" if lat else "● live")
+        self.s_live.set_text(f"● live · {lat:.1f} ms" if lat else "● live")
+        try:
+            os.makedirs(S.state_dir(), exist_ok=True)
+            with open(os.path.join(S.state_dir(), "frame-ms"), "w") as f:
+                f.write(f"{lat:.2f} {time.time():.0f}
+")
+        except OSError:
+            pass
         self.s_cpu.set_text(f"CPU {cpu:.0f}%" if cpu is not None else "")
         net = C.network()
         self.s_net.set_text(net)

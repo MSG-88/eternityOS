@@ -19,7 +19,7 @@ run() { local name=$1; shift
 }
 run firstrun "from eternity.ui import firstrun; sys.exit(firstrun.main([]))"
 [ -f "$XDG_CONFIG_HOME/eternity/settings.json" ] && echo "PASS firstrun wrote settings" || { echo "FAIL firstrun settings missing"; fail=1; }
-for mod in ask shell launcher monitor settingsui; do
+for mod in ask shell launcher monitor settingsui find; do
     [ -f "$PY/eternity/ui/$mod.py" ] || continue
     run "$mod" "from eternity.ui import $mod; sys.exit($mod.main([]))"
 done
