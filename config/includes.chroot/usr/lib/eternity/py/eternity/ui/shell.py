@@ -138,17 +138,30 @@ class Shell(Gtk.Window):
         self.set_keep_below(True)
         self.stick()
         self.set_accept_focus(False)
-        self.set_type_hint(Gdk.WindowTypeHint.DESKTOP)
+        # A normal, undecorated, kept-below window: xfwm4 stacks it above xfdesktop and below
+        # every other window (a DESKTOP-type window would fight xfdesktop for the bottom slot).
+        # It fills the work area, not the screen, so the panel stays visible and xfwm4 does
+        # not treat it as a legacy fullscreen window.
+        self.set_type_hint(Gdk.WindowTypeHint.NORMAL)
         self.set_app_paintable(True)
         self.connect("destroy", Gtk.main_quit)
         self.connect("draw", self.on_draw)
         self.t0 = time.monotonic()
         self.frame_ms = []
+        self.bg_surface = None
 
-        screen = Gdk.Screen.get_default()
-        self.w, self.h = screen.get_width(), screen.get_height()
+        display = Gdk.Display.get_default()
+        mon = display.get_primary_monitor() or display.get_monitor(0)
+        geo = mon.get_workarea() if mon else None
+        if geo is None or geo.width < 400:
+            screen = Gdk.Screen.get_default()
+            self.x0, self.y0, self.w, self.h = 0, 0, screen.get_width(), screen.get_height()
+        else:
+            self.x0, self.y0, self.w, self.h = geo.x, geo.y, geo.width, geo.height
         self.set_default_size(self.w, self.h)
-        self.move(0, 0)
+        self.set_size_request(self.w, self.h)
+        self.move(self.x0, self.y0)
+        self.connect("map-event", lambda *_: (self.move(self.x0, self.y0), self.set_keep_below(True), False)[2])
 
         self.fixed = Gtk.Fixed()
         self.add(self.fixed)
@@ -204,26 +217,36 @@ class Shell(Gtk.Window):
 
         self.refresh_cards()
         GLib.timeout_add(2000, self.refresh_cards)
-        GLib.timeout_add(1000 // 30, self.tick)
+        GLib.timeout_add(1000 // 20, self.tick)
 
     # ------------------------------------------------------------------- drawing
     def tick(self):
         t = time.monotonic()
-        self.queue_draw()
+        r = int(130 * self.unit)
+        self.queue_draw_area(int(self.cx - r), int(self.cy - r), 2 * r, 2 * r)
         self.frame_ms.append((time.monotonic() - t) * 1000)
         if len(self.frame_ms) > 60:
             self.frame_ms.pop(0)
         return True
 
+    def background(self) -> cairo.ImageSurface:
+        """Vignette and rings, rendered once (the rings do not move; only the mark breathes)."""
+        if self.bg_surface is None:
+            surf = cairo.ImageSurface(cairo.FORMAT_RGB24, self.w, self.h)
+            c = cairo.Context(surf)
+            rg = cairo.RadialGradient(self.w / 2, -self.h * 0.1, 10, self.w / 2, -self.h * 0.1, max(self.w, self.h) * 1.1)
+            rg.add_color_stop_rgb(0, *BG_TOP)
+            rg.add_color_stop_rgb(1, *BG_EDGE)
+            c.set_source(rg)
+            c.paint()
+            draw_rings(c, self.cx, self.cy, self.unit, 0.0)
+            self.bg_surface = surf
+        return self.bg_surface
+
     def on_draw(self, _w, cr: cairo.Context):
         t = time.monotonic() - self.t0
-        # vignette
-        rg = cairo.RadialGradient(self.w / 2, -self.h * 0.1, 10, self.w / 2, -self.h * 0.1, max(self.w, self.h) * 1.1)
-        rg.add_color_stop_rgb(0, *BG_TOP)
-        rg.add_color_stop_rgb(1, *BG_EDGE)
-        cr.set_source(rg)
+        cr.set_source_surface(self.background(), 0, 0)
         cr.paint()
-        draw_rings(cr, self.cx, self.cy, self.unit, t)
         breathe = 1 + 0.015 * math.sin(t * 1.1)
         draw_mark(cr, self.cx, self.cy, 176 * self.unit * breathe, t * 1.4, (t * 0.22) % 1, glow=1.0 + 0.3 * math.sin(t * 0.9))
         return False
