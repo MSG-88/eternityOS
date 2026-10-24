@@ -31,7 +31,8 @@ while IFS='|' read -r role name file url sha licence licence_url; do
             echo "checksum mismatch for $file: $got != $sha" >&2; exit 1
         fi
     fi
-    [ -s "$path.LICENSE" ] || dl "$licence_url" "$path.LICENSE"
+    # licence texts are nice to have; GitHub/HF hiccups must not fail a 40-minute build
+    [ -s "$path.LICENSE" ] || dl "$licence_url" "$path.LICENSE" || { echo "warning: licence for $file not fetched ($licence_url)"; rm -f "$path.LICENSE"; }
     ln -sfn "$file" "$DEST/$role.gguf"
     echo "$(sha256sum "$path" | cut -d' ' -f1)  $file" >> "$DEST/SHA256SUMS"
     size=$(stat -c %s "$path")
