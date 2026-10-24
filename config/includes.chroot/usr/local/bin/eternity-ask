@@ -1,0 +1,3 @@
+#!/bin/sh
+# Ask Eternity: the command bar (Super+Space). `eternity-ask "question"` asks straight away.
+exec /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity.ui import ask; sys.exit(ask.main())' "$@"

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Ask Eternity
+GenericName=Assistant command bar
+Comment=Ask Eternity, or type a command (Super+Space)
+Exec=eternity-ask
+Icon=eternity
+Terminal=false
+Categories=Utility;
+Keywords=ai;assistant;command;eternity;ask;
+StartupNotify=false

@@ -136,17 +136,32 @@ def idle(fn, *args):
 
 
 def shot(win: Gtk.Window, name: str) -> None:
-    """Save a PNG of a realized window when ETERNITY_UI_SHOT_DIR is set (headless checks)."""
+    """Save a PNG of a window when ETERNITY_UI_SHOT_DIR is set (headless checks under Xvfb).
+    Drawn offscreen through cairo, so it does not depend on a compositor."""
     d = os.environ.get("ETERNITY_UI_SHOT_DIR")
     if not d:
         return
+    import shutil
+    import subprocess
+    import time
     while Gtk.events_pending():
         Gtk.main_iteration()
-    gw = win.get_window()
-    if gw is None:
-        return
-    w, h = gw.get_width(), gw.get_height()
-    pb = Gdk.pixbuf_get_from_window(gw, 0, 0, w, h)
-    if pb is not None:
-        os.makedirs(d, exist_ok=True)
-        pb.savev(os.path.join(d, f"{name}.png"), "png", [], [])
+    os.makedirs(d, exist_ok=True)
+    if shutil.which("import") and os.environ.get("DISPLAY"):
+        # ImageMagick grabs the X root: what the server really shows (needs the window mapped)
+        time.sleep(0.6)
+        while Gtk.events_pending():
+            Gtk.main_iteration()
+        r = subprocess.run(["import", "-window", "root", os.path.join(d, f"{name}.png")], capture_output=True, timeout=20)
+        if r.returncode == 0:
+            return
+    import cairo
+    alloc = win.get_allocation()
+    w, h = max(1, alloc.width), max(1, alloc.height)
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+    cr = cairo.Context(surface)
+    cr.set_source_rgb(0x16 / 255, 0x18 / 255, 0x26 / 255)
+    cr.paint()
+    win.draw(cr)
+    os.makedirs(d, exist_ok=True)
+    surface.write_to_png(os.path.join(d, f"{name}.png"))
