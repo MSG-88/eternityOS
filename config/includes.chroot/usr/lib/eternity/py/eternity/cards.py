@@ -102,7 +102,7 @@ def recent_files(n: int = 4, roots: Optional[List[str]] = None) -> List[Dict[str
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = [d for d in dirnames if not d.startswith(".")][:30]
             for fn in filenames:
-                if fn.startswith("."):
+                if fn.startswith(".") or fn.endswith(".desktop"):
                     continue
                 p = os.path.join(dirpath, fn)
                 try:

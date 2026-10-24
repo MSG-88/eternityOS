@@ -135,6 +135,26 @@ def idle(fn, *args):
     GLib.idle_add(lambda: (fn(*args), False)[1])
 
 
+def guarded(name: str, fn, *args) -> int:
+    """Run a window's main() and write any crash to ~/.local/state/eternity/ui.log, so an
+    autostarted window that never appears leaves a trace."""
+    import traceback
+    try:
+        return int(fn(*args) or 0)
+    except SystemExit as e:
+        return int(e.code or 0)
+    except Exception:
+        try:
+            from .. import settings as _S
+            os.makedirs(_S.state_dir(), exist_ok=True)
+            with open(os.path.join(_S.state_dir(), "ui.log"), "a", encoding="utf-8") as f:
+                f.write("--- " + name + " crashed\n" + traceback.format_exc() + "\n")
+        except Exception:
+            pass
+        traceback.print_exc()
+        return 1
+
+
 def shot(win: Gtk.Window, name: str) -> None:
     """Save a PNG of a window when ETERNITY_UI_SHOT_DIR is set (headless checks under Xvfb).
     Lets the frame clock run a few frames so sizes are allocated, then draws the widget tree

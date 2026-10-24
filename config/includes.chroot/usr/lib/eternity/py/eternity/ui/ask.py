@@ -269,6 +269,11 @@ class AskWindow(Gtk.Window):
 
 
 def main(argv=None) -> int:
+    from . import guarded
+    return guarded("ask", _main, argv)
+
+
+def _main(argv=None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     load_css()
     cfg = S.load()

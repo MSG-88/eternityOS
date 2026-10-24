@@ -154,6 +154,11 @@ class FindWindow(Gtk.Window):
 
 
 def main(argv=None) -> int:
+    from . import guarded
+    return guarded("find", _main, argv)
+
+
+def _main(argv=None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     load_css()
     smoke = bool(os.environ.get("ETERNITY_UI_SMOKE"))

@@ -236,6 +236,11 @@ class Monitor(Gtk.Window):
 
 
 def main(argv=None) -> int:
+    from . import guarded
+    return guarded("monitor", _main, argv)
+
+
+def _main(argv=None) -> int:
     load_css()
     win = Monitor()
     win.show_all()

@@ -105,22 +105,35 @@ class SecretStore:
 
     SERVICE = "eternity-08"
 
-    def __init__(self, allow_keyring: bool = True):
+    def __init__(self, allow_keyring: bool = True, lazy: bool = False):
         self._ss = None
-        if allow_keyring and os.environ.get("ETERNITY_NO_KEYRING") is None:
-            try:
-                import secretstorage  # type: ignore
+        self._tried = False
+        self._allow = allow_keyring and os.environ.get("ETERNITY_NO_KEYRING") is None
+        if not lazy:
+            self._connect()
 
-                conn = secretstorage.dbus_init()
-                coll = secretstorage.get_default_collection(conn)
-                if coll.is_locked():
-                    coll.unlock()
-                self._ss = (secretstorage, conn, coll)
-            except Exception:
-                self._ss = None
+    def _connect(self):
+        """Talk to the Secret Service once, on first use: opening a collection can prompt the
+        user (new keyring), so windows must not do this while starting up."""
+        if self._tried:
+            return
+        self._tried = True
+        if not self._allow:
+            return
+        try:
+            import secretstorage  # type: ignore
+
+            conn = secretstorage.dbus_init()
+            coll = secretstorage.get_default_collection(conn)
+            if coll.is_locked():
+                coll.unlock()
+            self._ss = (secretstorage, conn, coll)
+        except Exception:
+            self._ss = None
 
     @property
     def backend(self) -> str:
+        self._connect()
         return "keyring" if self._ss else "file"
 
     def _file(self) -> str:
@@ -134,6 +147,7 @@ class SecretStore:
             return {}
 
     def get(self, provider: str) -> Optional[str]:
+        self._connect()
         if self._ss:
             secretstorage, conn, coll = self._ss
             for item in coll.search_items({"service": self.SERVICE, "provider": provider}):
@@ -143,6 +157,7 @@ class SecretStore:
 
     def set(self, provider: str, key: str) -> None:
         key = key.strip()
+        self._connect()
         if self._ss:
             secretstorage, conn, coll = self._ss
             self.delete(provider)
@@ -154,6 +169,7 @@ class SecretStore:
         _atomic_write(self._file(), json.dumps(keys, indent=2) + "\n", 0o600)
 
     def delete(self, provider: str) -> None:
+        self._connect()
         if self._ss:
             secretstorage, conn, coll = self._ss
             for item in coll.search_items({"service": self.SERVICE, "provider": provider}):

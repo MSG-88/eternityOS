@@ -50,14 +50,18 @@ S 30; Q screendump "$OUT/login.png"
 echo "INFO login screenshot at t=$(( $(date +%s) - t0 ))s"
 # lightdm-gtk-greeter preselects the only user, so the password field has focus
 Q keys eternity Enter
-# Phase 2: the first-run wizard opens on the first login; capture it, then close it (Alt-F4)
-# so the keystrokes below reach the terminal. The presence shell is the desktop behind it.
+# Phase 2: the first-run wizard opens on the first login; capture it, then close it with Esc
+# (the wizard quits on Esc; Esc is harmless on the bare desktop, unlike Alt-F4 which opens the
+# XFCE logout dialog). The presence shell is the desktop behind it.
 S 25; Q screendump "$OUT/firstrun.png"
-Q keys Alt-F4; S 4; Q screendump "$OUT/desktop.png"
+Q keys Esc; S 4; Q screendump "$OUT/desktop.png"
 Q keys Ctrl-Alt-T; S 6; Q keys "free -m" Enter; S 2; Q screendump "$OUT/terminal.png"
 # Where the desktop session's memory goes (build 6 showed 1.3 GB used under XFCE).
 Q keys "clear; ps -eo rss,comm --sort=-rss | head -14; grep -E 'AnonPages|Slab|Shmem|KReclaimable' /proc/meminfo" Enter
 S 2; Q screendump "$OUT/terminal-mem.png"
-# The command bar and the launcher, for the record
-Q keys "eternity-ask &" Enter; S 6; Q screendump "$OUT/ask.png"; Q keys Esc; S 2
+# What the autostarted Eternity windows logged (why the wizard did or did not appear)
+Q keys "clear; grep -iE 'eternity|Traceback|Error' ~/.xsession-errors ~/.local/state/eternity/ui.log 2>/dev/null | tail -12; ls /etc/xdg/autostart | tr '\\n' ' '" Enter
+S 3; Q screendump "$OUT/xsession-errors.png"
+# The command bar, for the record
+Q keys "clear; eternity-ask &" Enter; S 6; Q screendump "$OUT/ask.png"; Q keys Esc; S 2
 echo "screenshots in $OUT: grub.png splash.png login.png firstrun.png desktop.png terminal.png terminal-mem.png ask.png"

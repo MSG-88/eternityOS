@@ -3,6 +3,8 @@
 # The installer icon appears only in a live session. Runs from /etc/xdg/autostart.
 # With the presence shell active (desktop icons style 0) the launchers live in the shell and the radial launcher.
 DESKTOP=$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Desktop")
+# The presence shell owns the desktop (xfce4-desktop icons style 0): nothing to place.
+if [ "$(xfconf-query -c xfce4-desktop -p /desktop-icons/style 2>/dev/null)" = 0 ]; then exit 0; fi
 mkdir -p "$DESKTOP"
 
 place() {

@@ -51,7 +51,7 @@ start)
     grub_settle; Q screendump "$OUT/grub.png"; Q keys Enter
     S 38; Q screendump "$OUT/login.png"
     Q keys eternity Enter; S 25; Q screendump "$OUT/firstrun.png"
-    Q keys Alt-F4; S 4; Q screendump "$OUT/desktop.png"      # close the first-run wizard (phase 2)
+    Q keys Esc; S 4; Q screendump "$OUT/desktop.png"         # Esc closes the first-run wizard (phase 2), harmless otherwise
     # Launch the installer from a terminal. In the live session polkit lets the sudo-group
     # user run calamares without a prompt (observed in build 8), so nothing is typed blindly
     # here: a stray keystroke would land in the installer's language box.

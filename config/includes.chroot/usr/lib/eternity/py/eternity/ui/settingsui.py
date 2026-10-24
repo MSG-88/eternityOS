@@ -196,8 +196,13 @@ class SettingsWindow(Gtk.Window):
 
 
 def main(argv=None) -> int:
+    from . import guarded
+    return guarded("settingsui", _main, argv)
+
+
+def _main(argv=None) -> int:
     load_css()
-    win = SettingsWindow(S.load(), S.SecretStore())
+    win = SettingsWindow(S.load(), S.SecretStore(lazy=True))
     win.show_all()
     if os.environ.get("ETERNITY_UI_SMOKE"):
         shot(win, "settings")

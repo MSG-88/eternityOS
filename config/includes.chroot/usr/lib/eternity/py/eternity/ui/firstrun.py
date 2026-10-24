@@ -47,6 +47,7 @@ class FirstRun(Gtk.Window):
         self.set_resizable(False)
         self.get_style_context().add_class("eternity-window")
         self.connect("destroy", Gtk.main_quit)
+        self.connect("key-press-event", lambda _w, e: (Gtk.main_quit(), True)[1] if e.keyval == Gdk.KEY_Escape else False)
         self.step = 0
         self.pin_value = ""
 
@@ -262,6 +263,11 @@ class FirstRun(Gtk.Window):
 
 
 def main(argv=None) -> int:
+    from . import guarded
+    return guarded("firstrun", _main, argv)
+
+
+def _main(argv=None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     cfg = S.load()
     if "--autostart" in argv and cfg.first_run_done:
@@ -269,7 +275,7 @@ def main(argv=None) -> int:
     if "--reset" in argv:
         cfg.first_run_done = False
     load_css()
-    win = FirstRun(cfg, S.SecretStore())
+    win = FirstRun(cfg, S.SecretStore(lazy=True))
     win.show_all()
     if os.environ.get("ETERNITY_UI_SMOKE"):
         # headless smoke: walk every step without saving secrets, then quit
