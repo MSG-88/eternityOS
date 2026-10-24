@@ -115,8 +115,51 @@ def wallpaper(w, h, path, hint=None, centered=False):
     img.convert("RGB").save(path, optimize=True)
 
 
+def text_card(w, h, path, title, subtitle, wordmark_frac=0.5):
+    """Dark card with the wordmark on top and two lines of text (Calamares slides)."""
+    img = gradient_background(w, h)
+    wm = wordmark(int(w * wordmark_frac))
+    img.alpha_composite(wm, ((w - wm.width) // 2, int(h * 0.16)))
+    d = ImageDraw.Draw(img)
+    f1, f2 = font(max(18, h // 14)), font(max(14, h // 24))
+    for txt, fnt, y, col in ((title, f1, 0.60, TEXT), (subtitle, f2, 0.74, MUTED)):
+        tw = d.textlength(txt, font=fnt)
+        d.text(((w - tw) / 2, int(h * y)), txt, font=fnt, fill=col)
+    img.convert("RGB").save(path, optimize=True)
+
+
+def boot_assets():
+    """GRUB background + theme copy, Plymouth images, Calamares branding images."""
+    grub_iso = os.path.join(ROOT, "config", "bootloaders", "grub-pc", "themes", "eternity")
+    grub_sys = os.path.join(CHROOT, "usr", "share", "grub", "themes", "eternity")
+    for d in (grub_iso, grub_sys):
+        os.makedirs(d, exist_ok=True)
+    bg = gradient_background(1920, 1080)
+    wm = wordmark(int(1920 * 0.40))
+    bg.alpha_composite(wm, ((1920 - wm.width) // 2, int(1080 * 0.10)))
+    for d in (grub_iso, grub_sys):
+        bg.convert("RGB").save(os.path.join(d, "background.png"), optimize=True)
+    shutil.copyfile(os.path.join(grub_iso, "theme.txt"), os.path.join(grub_sys, "theme.txt"))
+
+    ply = os.path.join(CHROOT, "usr", "share", "plymouth", "themes", "eternity")
+    os.makedirs(ply, exist_ok=True)
+    wordmark(720).save(os.path.join(ply, "logo.png"))
+    Image.new("RGBA", (520, 6), PANEL + (255,)).save(os.path.join(ply, "progress-bg.png"))
+    Image.new("RGBA", (520, 6), ACCENT + (255,)).save(os.path.join(ply, "progress-fg.png"))
+
+    cal = os.path.join(CHROOT, "etc", "calamares", "branding", "eternity")
+    os.makedirs(cal, exist_ok=True)
+    svg_to_png(ICON_SVG, 128, 128).save(os.path.join(cal, "logo.png"))
+    text_card(640, 360, os.path.join(cal, "welcome.png"), "Welcome", "A lightweight Linux with local AI built in", 0.6)
+    text_card(760, 428, os.path.join(cal, "slide-1.png"), "Local AI, no cloud required",
+              "Qwen models run offline with llama.cpp — try eternity-chat after install")
+    text_card(760, 428, os.path.join(cal, "slide-2.png"), "Python ML stack ready",
+              "PyTorch, Transformers, scikit-learn, pandas and Jupyter in /opt/eternity/venv")
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
+    boot_assets()
     shutil.copyfile(LOGO_SVG, os.path.join(OUT, "logo.svg"))
     wordmark(1600).save(os.path.join(OUT, "wordmark.png"))
     for size in (64, 128, 256, 512):

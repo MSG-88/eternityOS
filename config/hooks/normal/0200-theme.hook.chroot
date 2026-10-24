@@ -1,0 +1,18 @@
+#!/bin/sh
+# Boot theming: Plymouth default theme, GRUB distributor/theme for installed systems.
+set -e
+
+plymouth-set-default-theme -R eternity
+
+if [ -f /etc/default/grub ]; then
+    sed -i 's/^GRUB_DISTRIBUTOR=.*/GRUB_DISTRIBUTOR="Eternity 08"/' /etc/default/grub
+    grep -q '^GRUB_DISTRIBUTOR=' /etc/default/grub || echo 'GRUB_DISTRIBUTOR="Eternity 08"' >> /etc/default/grub
+fi
+
+# The Debian GRUB background script must not override our theme on installed systems.
+if [ -f /etc/grub.d/05_debian_theme ]; then
+    chmod -x /etc/grub.d/05_debian_theme
+fi
+
+# fc-cache for the shipped fonts (used by Plymouth's text and the greeter)
+fc-cache -f >/dev/null 2>&1 || true

@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Eternity 08
+Description=Eternity 08 boot splash: wordmark with a progress line
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/eternity
+ScriptFile=/usr/share/plymouth/themes/eternity/eternity.script

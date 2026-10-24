@@ -35,8 +35,12 @@ log "Mirroring $REPO -> $BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 rsync -a --delete \
     --exclude '.git' --exclude 'cache/' --exclude 'out/' --exclude 'tests/out/' \
-    --exclude '.superpowers/' --exclude 'build.log' \
-    --exclude 'config/includes.chroot/opt/eternity/models/' \
+    --exclude '.superpowers/' --exclude 'build.log' --exclude '.hostvenv/' \
+    --exclude 'config/includes.chroot/opt/eternity/models/*.gguf' \
+    --exclude 'config/includes.chroot/opt/eternity/models/*.LICENSE' \
+    --exclude 'config/includes.chroot/opt/eternity/models/models.json' \
+    --exclude 'config/includes.chroot/opt/eternity/models/SHA256SUMS' \
+    --exclude 'config/includes.chroot/var/cache/eternity-wheels/' \
     "$REPO/" "$BUILD_DIR/"
 # Big downloaded artifacts stay in the build dir between runs (they are gitignored).
 mkdir -p "$BUILD_DIR/config/includes.chroot/opt/eternity/models" "$BUILD_DIR/out"
@@ -60,10 +64,27 @@ if [ -d tests/expect ]; then
 fi
 if [ -f ai/requirements.lock ]; then
     install -D -m 644 ai/requirements.lock config/includes.chroot/usr/lib/eternity/requirements.lock
+    # Wheel cache for the offline venv build inside the chroot (kept between builds,
+    # removed from the image by the cleanup hook). Host and image are both Debian 13 / Python 3.13.
+    log "Staging Python wheels"
+    WHEELS=config/includes.chroot/var/cache/eternity-wheels
+    mkdir -p "$WHEELS"
+    [ -x .hostvenv/bin/pip ] || python3 -m venv .hostvenv
+    .hostvenv/bin/pip download -q --require-hashes -r ai/requirements.lock -d "$WHEELS"
+    # build backends for the sdists in the lock (llama-cpp-python needs scikit-build-core);
+    # pip's isolated build env resolves them from the same offline cache inside the chroot.
+    .hostvenv/bin/pip download -q 'scikit-build-core>=0.9.2' setuptools wheel -d "$WHEELS"
+fi
+if [ -f ai/llama-cpp.version ]; then
+    install -D -m 644 ai/llama-cpp.version config/includes.chroot/usr/lib/eternity/llama-cpp.version
 fi
 if [ -f branding/render.py ]; then
     log "Rendering branding assets"
     python3 branding/render.py
+fi
+if [ -f branding/make-grub-fonts.sh ]; then
+    log "Building GRUB fonts"
+    bash branding/make-grub-fonts.sh
 fi
 if [ -f ai/fetch-models.sh ]; then
     log "Fetching models"
@@ -78,6 +99,8 @@ log "lb clean"
 lb clean
 log "lb config"
 lb config
+# Keep mksquashfs within the WSL memory cap (the 7 GB tree would otherwise peak well above it)
+export MKSQUASHFS_OPTIONS="${MKSQUASHFS_OPTIONS:--processors 3 -mem 768M}"
 log "lb build (log: $BUILD_DIR/build.log)"
 start=$(date +%s)
 lb build
