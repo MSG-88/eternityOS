@@ -251,8 +251,7 @@ class Shell(Gtk.Window):
         try:
             os.makedirs(S.state_dir(), exist_ok=True)
             with open(os.path.join(S.state_dir(), "frame-ms"), "w") as f:
-                f.write(f"{lat:.2f} {time.time():.0f}
-")
+                f.write(f"{lat:.2f} {time.time():.0f}\n")
         except OSError:
             pass
         self.s_cpu.set_text(f"CPU {cpu:.0f}%" if cpu is not None else "")
