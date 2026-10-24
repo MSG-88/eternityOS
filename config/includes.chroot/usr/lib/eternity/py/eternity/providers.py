@@ -280,6 +280,8 @@ class LocalProvider(OpenAICompatible):
         raise ProviderError("the local model did not start in time")
 
     def stream(self, messages, system=None, tools=None, max_tokens=1024):
+        if not self.healthy():
+            yield ("status", "waking the local model …")
         self.ensure_running()
         yield from super().stream(messages, system, tools, max_tokens)
 
