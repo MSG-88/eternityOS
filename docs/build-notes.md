@@ -270,3 +270,37 @@ Defects found and fixed for build 9 (commit 005e31f):
   wallpaper and only live sessions switch to the hinted image (live-config component).
 - `hwclock` missing in the target (`util-linux-extra` added).
 - `GRUB_DISABLE_OS_PROBER=false` so an installed system next to Windows lists it.
+
+## First real-hardware attempt (2026-10-24 night): `grub>` prompt from a Rufus stick
+
+The owner reported "the boot screen was stuck in the GRUB CLI" on the MSI laptop and
+"not able to boot" in a hand-made Hyper-V VM. Investigation (session of 2026-10-24/25):
+
+- **No installation happened.** Disk 0 still holds only the four Windows partitions
+  (ESP, MSR, C:, recovery), so the "GRUB prompt after install" theory does not apply to
+  this incident. (The Calamares `installEFIFallback` finding, a bare signed GRUB copied to
+  `EFI/boot/bootx64.efi`, is still a real latent defect for installs; see the memory note
+  and the backlog.)
+- **The stick is not the raw image.** The SanDisk (disk 1) is MBR with a 57.7 GB NTFS
+  partition labelled ETERNITY08 and a 1 MB `UEFI_NTFS` partition; the root has
+  `autorun.inf` ("Created by Rufus 4.13.2316"), a `[BOOT]` folder and the ISO files
+  extracted (23:04). That is Rufus **ISO Image mode**: the squashfs (6.1 GB) exceeds the
+  FAT32 file limit, so Rufus used NTFS plus its UEFI:NTFS chain loader and its own BIOS
+  GRUB core. The project's boot chain (shim + Debian-signed GRUB on the ISO's own ESP,
+  ISO9660 on the raw device, `search /.disk/info`) was never built or tested for that.
+- **The raw image boots as a USB disk.** The ISO attached to QEMU as USB mass storage
+  (`qemu-xhci` + `usb-storage`) reaches the themed menu under OVMF Secure Boot and under
+  SeaBIOS; the suite only ever attached it as a CD-ROM (El Torito path) before. The ISO
+  files extracted onto a FAT32 partition also reach the menu under Secure Boot (the signed
+  GRUB's built-in config finds `/boot/grub/grub.cfg` on the partition it was loaded from).
+  A faithful NTFS + UEFI:NTFS reproduction was not achieved (OVMF would not start the
+  hand-made helper partition), so the exact failing step on the laptop is unconfirmed.
+- Both ISO copies are identical (SHA-256 `c12c6580...0b8a`, 6,314,383,360 bytes), so the
+  Windows-side file is not corrupt.
+- **Hyper-V was never run by the sessions** (never elevated; `Get-VM` is denied here too).
+  The usual cause of "cannot boot" for a hand-made Gen 2 VM is the default *Microsoft
+  Windows* Secure Boot template, which refuses Debian's shim; the README now says so.
+
+Changes: `tests/run-qemu-usb.sh` (USB-disk boot, UEFI Secure Boot or BIOS, Self-test
+entry) added to `tests/run-all.sh`; README warns to write the image raw (Rufus "DD Image
+mode", `tools\write-usb.ps1`, balenaEtcher) and gives the `grub>` recovery commands.

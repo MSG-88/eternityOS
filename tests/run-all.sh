@@ -4,6 +4,7 @@
 #   2. UEFI Secure Boot via GRUB "Self-test" entry (proves shim + signed kernel + GRUB menu)
 #   3. UEFI visual run: GRUB / splash / login / desktop / terminal screenshots
 #   4. legacy BIOS boot via GRUB "Self-test" entry
+#   5. USB-disk boot (hybrid MBR/GPT path of a written stick) under OVMF Secure Boot, "Self-test" entry
 set -uo pipefail
 ISO=${1:-}
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -18,10 +19,11 @@ cp -f "$OUT/serial.log" "$OUT/serial-smoke.log" 2>/dev/null || true
 run secureboot   bash "$HERE/run-qemu-visual.sh" "$ISO" --selftest
 run visual       bash "$HERE/run-qemu-visual.sh" "$ISO"
 run bios         bash "$HERE/run-qemu-bios.sh" "$ISO"
+run usb          bash "$HERE/run-qemu-usb.sh" "$ISO"
 
 echo; echo "#### summary"
 fail=0
-for k in smoke secureboot visual bios; do
+for k in smoke secureboot visual bios usb; do
     if [ "${R[$k]}" = 0 ]; then s=PASS; else s=FAIL; fail=1; fi
     printf '  %-11s %s\n' "$k" "$s"
 done

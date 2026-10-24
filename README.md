@@ -40,9 +40,11 @@ versions come from the lock file, the manifest and `ai/llama-cpp.version`.
 
 Tests (`tests/run-all.sh`): direct-kernel smoke boot with the in-image
 self-test, UEFI Secure Boot boot through GRUB, screenshots of GRUB, splash,
-login and desktop, and a legacy BIOS boot. The runners use KVM when WSL has
-`/dev/kvm`; without it (nested virtualization missing, see `docs/build-notes.md`)
-they fall back to QEMU software emulation, about ten times slower.
+login and desktop, a legacy BIOS boot, and a boot from the ISO attached as a USB
+disk (the hybrid-image path a written stick takes, `tests/run-qemu-usb.sh`). The
+runners use KVM when WSL has `/dev/kvm`; without it (nested virtualization missing,
+see `docs/build-notes.md`) they fall back to QEMU software emulation, about ten times
+slower.
 `tests/run-chroot-checks.sh` runs the file-level and model checks natively in
 the build chroot without a VM.
 
@@ -59,6 +61,21 @@ the build chroot without a VM.
 
 Boot the laptop from the stick (MSI: press F11 at power-on and pick the USB
 device). Secure Boot can stay enabled.
+
+**Write the image raw.** The ISO is a hybrid image: copied byte for byte it brings its
+own partition table (an EFI System Partition with shim and GRUB, the ISO9660 filesystem
+on the whole device). Tools that *extract* the ISO onto a filesystem produce a stick this
+boot chain was never built for. Rufus in particular reports "ISOHybrid image detected"
+and defaults to **ISO Image mode**; because `live/filesystem.squashfs` is larger than
+4 GB it then formats the stick NTFS and boots it through its own UEFI:NTFS loader, which
+ended at a bare `grub>` prompt on the MSI laptop (Rufus 4.13, 2026-10-24). Pick
+**DD Image mode** in that dialog, or use `tools\write-usb.ps1`, or balenaEtcher (always
+raw). The raw image boots to the menu as a USB disk under OVMF Secure Boot and under
+SeaBIOS (`tests/run-qemu-usb.sh`).
+
+If the firmware starts GRUB but shows only a `grub>` prompt, first try
+`search --file --set=root /.disk/info` and then `configfile ($root)/boot/grub/grub.cfg`;
+when `search` finds nothing the stick does not hold the raw image: rewrite it.
 
 Windows blocks unsigned scripts by default; run them as
 `powershell -ExecutionPolicy Bypass -File .\tools\write-usb.ps1 -List` (same for
@@ -81,6 +98,9 @@ Hyper-V works even though WSL lost nested virtualization. In Hyper-V Manager:
    4B model); 4 virtual processors; a 40 GB dynamic disk (only needed to install).
 2. Settings > Security: Secure Boot enabled, template **Microsoft UEFI Certificate
    Authority** (the ISO boots through Debian's signed shim).
+   With the default *Microsoft Windows* template the VM refuses Debian's shim ("The
+   image's hash and certificate are not allowed (DB)", then "No operating system was
+   loaded"): that is the template, not the ISO. A Generation 1 VM has no UEFI at all.
 3. Settings > SCSI Controller > DVD Drive: attach `out\eternity-08-0.1.0-amd64.iso`;
    Firmware: put the DVD drive first in the boot order.
 4. Connect and start. GRUB > Eternity 08 Live > greeter: user `eternity`, password
