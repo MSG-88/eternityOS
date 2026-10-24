@@ -412,3 +412,29 @@ Build 10 must show: themed GRUB, the new splash, the greeter on the new wallpape
 first-run wizard after login, the presence shell with its cards, the command bar, and
 `SMOKE: PASS` including `check_security` and `check_boot_theme`. Results are appended below
 when the runs finish.
+
+### Build 10 results (2026-10-25, 02:17 to 02:58 build, 36 min, 6.0 GB)
+
+- Hooks: nftables and AppArmor enabled, theme/initramfs built, no errors.
+- Smoke self-test (TCG, 40 min): **SMOKE: PASS**, every check including the new
+  `check_security` (nftables input policy drop live, AppArmor on, hardening sysctls, no
+  non-loopback listeners) and the extended `check_boot_theme` (ring frames in the initrd,
+  eternity-bootlog enabled, Michroma, Nocturne GRUB theme). Idle memory at boot 300 MB.
+- Visual run: themed GRUB with the lock-up, greeter on the new wallpaper with the mark as
+  avatar, and the presence desktop after login (today / system / recent / Eternity cards,
+  the live-session install card, status strip "● live · 0.4 ms", command-bar hint) all
+  render in the real image. Two defects: (1) the first-run wizard did not open after login
+  (no window; the autostart runs `eternity-firstrun --autostart`), most likely because the
+  window opened the Secret Service before creating itself and blocked on a keyring prompt
+  in the fresh session: the store is now lazy and never creates/unlocks a collection, and
+  every window logs crashes to `~/.local/state/eternity/ui.log`; the visual runner now
+  captures those logs; (2) the runner's Alt-F4 (meant for the wizard) opened XFCE's logout
+  dialog on the bare desktop and the following Enter logged out, so the terminal, memory
+  and command-bar screenshots of this run show the greeter instead; runners now send Esc.
+  The 80 s splash shot shows an initramfs console line (`mount: efivarfs`) rather than the
+  Plymouth splash: unverified whether the new script renders; its ternary/`!` expressions
+  were replaced by plain if/else for the next build.
+- The "recent files" card listed the launcher copies in ~/Desktop: desktop-icons.sh now
+  does nothing while the presence owns the desktop, and .desktop files are skipped.
+- Install chain (unattended install, boot-disk, boot-fallback, Secure Boot, BIOS, USB)
+  restarted at 03:58 on the same ISO with the fixed runners: results below.
