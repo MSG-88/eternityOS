@@ -95,6 +95,27 @@ check_boot_theme() {
     grep -q '#9184d9' /usr/share/grub/themes/eternity/theme.txt || { echo "GRUB theme is not the Nocturne palette"; return 1; }
 }
 
+check_phase2() {
+    # The Eternity interface and assistant (phase 2): package imports, launchers, autostart, shortcuts, embed model.
+    python3 - <<'PY' || { echo "eternity python package does not import"; return 1; }
+import sys
+sys.path.insert(0, "/usr/lib/eternity/py")
+import eternity.settings, eternity.providers, eternity.actions, eternity.agent, eternity.find, eternity.cards, eternity.launcher_index  # noqa
+import gi
+gi.require_version("Gtk", "3.0")
+PY
+    local b
+    for b in eternity-firstrun eternity-ask eternity-shell eternity-launcher eternity-find eternity-monitor eternity-settings; do
+        [ -x "/usr/local/bin/$b" ] || { echo "$b missing or not executable"; return 1; }
+    done
+    [ -s /etc/xdg/autostart/eternity-shell.desktop ] && [ -s /etc/xdg/autostart/eternity-firstrun.desktop ] || { echo "autostart entries missing"; return 1; }
+    grep -q 'eternity-ask' /etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml 2>/dev/null || { echo "Super+Space shortcut missing"; return 1; }
+    [ -f /opt/eternity/models/embed.gguf ] || { echo "embed.gguf (search by meaning) missing"; return 1; }
+    dpkg -s python3-gi gnome-keyring libsecret-tools >/dev/null 2>&1 || { echo "GTK/keyring packages missing"; return 1; }
+    [ -f /usr/share/fonts/truetype/michroma/Michroma-Regular.ttf ] || { echo "Michroma missing"; return 1; }
+    return 0
+}
+
 check_secureboot() {
     [ -d /sys/firmware/efi ] || { echo "not an EFI boot"; return 2; }
     mokutil --sb-state 2>/dev/null | grep -q 'SecureBoot enabled' || { echo "$(mokutil --sb-state 2>&1 | head -1)"; return 1; }
