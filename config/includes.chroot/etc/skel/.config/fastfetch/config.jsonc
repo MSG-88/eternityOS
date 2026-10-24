@@ -3,12 +3,12 @@
     "logo": {
         "type": "file",
         "source": "/usr/share/eternity/fastfetch.txt",
-        "color": { "1": "cyan", "2": "white" },
+        "color": { "1": "38;2;145;132;217", "2": "white" },
         "padding": { "top": 1, "right": 3 }
     },
     "display": {
         "separator": "  ",
-        "color": { "keys": "cyan", "title": "cyan" }
+        "color": { "keys": "38;2;145;132;217", "title": "38;2;145;132;217" }
     },
     "modules": [
         "title",

@@ -86,6 +86,13 @@ check_boot_theme() {
     initrd=$(ls /boot/initrd.img-* 2>/dev/null | head -1)
     [ -n "$initrd" ] || { echo "no initrd in /boot"; return 1; }
     lsinitramfs "$initrd" 2>/dev/null | grep -q 'plymouth/themes/eternity' || { echo "initrd lacks plymouth eternity theme"; return 1; }
+    # Design refresh (2026-10-25): the splash animates the Möbius mark from pre-rendered frames
+    # and shows real boot-log lines sent by eternity-bootlog.service.
+    lsinitramfs "$initrd" 2>/dev/null | grep -q 'plymouth/themes/eternity/ring-loop-23.png' || { echo "initrd lacks the ring frames"; return 1; }
+    [ -x /usr/lib/eternity/bootlog.sh ] || { echo "bootlog.sh missing or not executable"; return 1; }
+    [ "$(systemctl is-enabled eternity-bootlog.service 2>/dev/null)" = enabled ] || { echo "eternity-bootlog.service not enabled"; return 1; }
+    [ -f /usr/share/fonts/truetype/michroma/Michroma-Regular.ttf ] || { echo "Michroma font missing"; return 1; }
+    grep -q '#9184d9' /usr/share/grub/themes/eternity/theme.txt || { echo "GRUB theme is not the Nocturne palette"; return 1; }
 }
 
 check_secureboot() {

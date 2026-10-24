@@ -1,7 +1,7 @@
-# Eternity 08 GRUB theme (used on the live ISO and on installed systems)
+# Eternity 08 GRUB theme (used on the live ISO and on installed systems). Nocturne palette.
 desktop-image: "background.png"
 desktop-image-scale-method: "stretch"
-desktop-color: "#070B14"
+desktop-color: "#161826"
 title-text: ""
 terminal-font: "JetBrains Mono Regular 16"
 terminal-left: "10%"
@@ -11,13 +11,13 @@ terminal-height: "80%"
 terminal-border: "0"
 
 + label {
-    top = 26%
+    top = 27%
     left = 0
     width = 100%
     align = "center"
     text = "version 0.1.0  ·  Genesis"
     font = "Inter Regular 18"
-    color = "#7C8BA1"
+    color = "#9397ab"
 }
 
 + boot_menu {
@@ -26,9 +26,9 @@ terminal-border: "0"
     top = 38%
     height = 36%
     item_font = "Inter Regular 18"
-    item_color = "#9AA8BD"
+    item_color = "#b2b6ca"
     selected_item_font = "Inter Regular 18"
-    selected_item_color = "#19D3F5"
+    selected_item_color = "#d2cefd"
     item_height = 40
     item_padding = 6
     item_spacing = 4
@@ -45,10 +45,10 @@ terminal-border: "0"
     top = 80%
     height = 22
     font = "Inter Regular 18"
-    text_color = "#7C8BA1"
-    fg_color = "#19D3F5"
-    bg_color = "#0D1320"
-    border_color = "#0E8FA8"
+    text_color = "#9397ab"
+    fg_color = "#9184d9"
+    bg_color = "#232532"
+    border_color = "#423a6a"
     text = "@TIMEOUT_NOTIFICATION_SHORT@"
 }
 
@@ -59,5 +59,5 @@ terminal-border: "0"
     align = "center"
     text = "Enter boots the selection   ·   e edits   ·   c opens the GRUB console"
     font = "Inter Regular 18"
-    color = "#4E5B70"
+    color = "#595d6c"
 }

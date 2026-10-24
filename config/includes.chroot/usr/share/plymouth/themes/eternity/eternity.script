@@ -1,77 +1,136 @@
-// Eternity 08 Plymouth theme (script plugin)
+// Eternity 08 Plymouth theme (script plugin). Design: docs/design/README.md scene 01.
+//
+// A hairline draws across the screen, the presence assembles ring by ring (24 pre-rendered
+// frames of the Möbius mark drawing in, then a 24-frame shading loop), the wordmark settles
+// beneath it, and up to six boot-log lines appear on the left as the system reports them
+// (eternity-bootlog.service sends real facts with `plymouth display-message`).
 
-Window.SetBackgroundTopColor(0.027, 0.043, 0.078);     // #070B14
-Window.SetBackgroundBottomColor(0.051, 0.075, 0.125);  // #0D1320
+Window.SetBackgroundTopColor(0.106, 0.118, 0.192);     // #1b1e31
+Window.SetBackgroundBottomColor(0.071, 0.078, 0.129);  // #121421
 
 screen.w = Window.GetWidth();
 screen.h = Window.GetHeight();
+scale = screen.h / 1080;
+if (scale < 0.5) scale = 0.5;
 
-logo.image = Image("logo.png");
-if (logo.image.GetWidth() > screen.w * 0.6) {
-    logo.image = logo.image.Scale(screen.w * 0.6, logo.image.GetHeight() * (screen.w * 0.6) / logo.image.GetWidth());
+// ---------------------------------------------------------------- the presence (frames)
+FRAMES = 24;
+for (i = 0; i < FRAMES; i++) {
+    n = i;
+    name = "ring-draw-" + (n < 10 ? "0" : "") + n + ".png";
+    draw_frames[i] = Image(name);
+    name = "ring-loop-" + (n < 10 ? "0" : "") + n + ".png";
+    loop_frames[i] = Image(name);
 }
-logo.sprite = Sprite(logo.image);
-logo.x = screen.w / 2 - logo.image.GetWidth() / 2;
-logo.y = screen.h / 2 - logo.image.GetHeight() / 2 - 30;
-logo.sprite.SetPosition(logo.x, logo.y, 1);
-
-bar.bg = Image("progress-bg.png");
-bar.fg_full = Image("progress-fg.png");
-bar.x = screen.w / 2 - bar.bg.GetWidth() / 2;
-bar.y = logo.y + logo.image.GetHeight() + 36;
-bar.bg_sprite = Sprite(bar.bg);
-bar.bg_sprite.SetPosition(bar.x, bar.y, 2);
-bar.fg_sprite = Sprite();
-bar.fg_sprite.SetPosition(bar.x, bar.y, 3);
-bar.width = 0;
-
-fun progress_callback(duration, progress) {
-    w = Math.Int(bar.fg_full.GetWidth() * progress);
-    if (w < 2) w = 2;
-    if (w != bar.width) {
-        bar.width = w;
-        bar.fg_sprite.SetImage(bar.fg_full.Scale(w, bar.fg_full.GetHeight()));
+if (scale != 1) {
+    for (i = 0; i < FRAMES; i++) {
+        draw_frames[i] = draw_frames[i].Scale(draw_frames[i].GetWidth() * scale, draw_frames[i].GetHeight() * scale);
+        loop_frames[i] = loop_frames[i].Scale(loop_frames[i].GetWidth() * scale, loop_frames[i].GetHeight() * scale);
     }
 }
-Plymouth.SetBootProgressFunction(progress_callback);
+mark.w = draw_frames[0].GetWidth();
+mark.h = draw_frames[0].GetHeight();
+mark.x = screen.w / 2 - mark.w / 2;
+mark.y = screen.h * 0.46 - mark.h / 2;
+mark.sprite = Sprite();
+mark.sprite.SetPosition(mark.x, mark.y, 5);
+mark.sprite.SetOpacity(0);
 
-// Idle pulse of the bar while waiting (shutdown, no progress events)
-pulse.t = 0;
+// ---------------------------------------------------------------- hairline + wordmark
+rule.full = Image("rule.png");
+rule.y = screen.h * 0.46 + mark.h / 2 + 24 * scale;
+rule.sprite = Sprite();
+rule.sprite.SetPosition(screen.w / 2 - rule.full.GetWidth() / 2, rule.y, 4);
+
+word.image = Image("wordmark.png");
+if (scale != 1) word.image = word.image.Scale(word.image.GetWidth() * scale, word.image.GetHeight() * scale);
+word.x = screen.w / 2 - word.image.GetWidth() / 2;
+word.y = rule.y + 26 * scale;
+word.sprite = Sprite(word.image);
+word.sprite.SetPosition(word.x, word.y + 10, 5);
+word.sprite.SetOpacity(0);
+
+// ---------------------------------------------------------------- boot log (left column)
+log.count = 0;
+log.max = 6;
+log.x = screen.w * 0.08;
+log.y = screen.h * 0.40;
+log.line_h = 26 * scale;
+fun log_add(text) {
+    if (log.count >= log.max) {
+        for (i = 0; i < log.max - 1; i++) { log.text[i] = log.text[i + 1]; }
+        log.count = log.max - 1;
+    }
+    log.text[log.count] = text;
+    log.count++;
+    for (i = 0; i < log.count; i++) {
+        num = (i + 1 < 10 ? "0" : "") + (i + 1);
+        img = Image.Text(num + "   " + log.text[i], 0.58, 0.61, 0.67, 1, "Sans 11");
+        if (!log.sprite[i]) log.sprite[i] = Sprite();
+        log.sprite[i].SetImage(img);
+        log.sprite[i].SetPosition(log.x, log.y + i * log.line_h, 6);
+        log.sprite[i].SetOpacity(1);
+    }
+}
+
+// ---------------------------------------------------------------- choreography
+t = 0;                       // refresh ticks (about 50 per second)
+fun ease_out(x) { if (x > 1) x = 1; if (x < 0) x = 0; return 1 - (1 - x) * (1 - x) * (1 - x); }
+
 fun refresh_callback() {
-    pulse.t += 1;
-    if (Plymouth.GetMode() == "shutdown" || Plymouth.GetMode() == "reboot") {
-        w = Math.Int(bar.fg_full.GetWidth() * (0.5 + 0.5 * Math.Sin(pulse.t / 20)));
-        if (w < 2) w = 2;
-        bar.fg_sprite.SetImage(bar.fg_full.Scale(w, bar.fg_full.GetHeight()));
+    t++;
+    // 0.0 - 1.0 s: the hairline draws from the centre
+    p = ease_out(t / 50);
+    w = Math.Int(rule.full.GetWidth() * p);
+    if (w < 2) w = 2;
+    rule.sprite.SetImage(rule.full.Scale(w, rule.full.GetHeight()));
+    rule.sprite.SetX(screen.w / 2 - w / 2);
+    // 0.3 - 2.0 s: the ring and ribbon draw in; afterwards the shading loops
+    if (t > 15) {
+        mark.sprite.SetOpacity(1);
+        if (t < 15 + FRAMES * 3.5) {
+            f = Math.Int((t - 15) / 3.5);
+            if (f >= FRAMES) f = FRAMES - 1;
+            mark.sprite.SetImage(draw_frames[f]);
+        } else {
+            f = Math.Int(((t - 15 - FRAMES * 3.5) / 2.5)) % FRAMES;
+            mark.sprite.SetImage(loop_frames[f]);
+        }
+    }
+    // 1.6 - 2.6 s: the wordmark settles
+    if (t > 80) {
+        q = ease_out((t - 80) / 50);
+        word.sprite.SetOpacity(q);
+        word.sprite.SetY(word.y + 10 * (1 - q));
     }
 }
 Plymouth.SetRefreshFunction(refresh_callback);
 
-// Status / password messages below the bar
-message.sprite = Sprite();
-message.sprite.SetPosition(0, bar.y + 40, 4);
+// Boot progress is implied by the log; the systemd messages drive the lines.
 fun message_callback(text) {
-    img = Image.Text(text, 0.49, 0.55, 0.63, 1, "Sans 12");
-    message.sprite.SetImage(img);
-    message.sprite.SetX(screen.w / 2 - img.GetWidth() / 2);
+    if (text == "") return;
+    log_add(text);
 }
 Plymouth.SetDisplayMessageFunction(message_callback);
 
-fun password_callback(prompt, bullets) {
-    txt = "";
-    for (i = 0; i < bullets; i++) txt += "•";
-    img = Image.Text(prompt + "  " + txt, 0.9, 0.95, 1.0, 1, "Sans 12");
-    message.sprite.SetImage(img);
-    message.sprite.SetX(screen.w / 2 - img.GetWidth() / 2);
+// Password prompts (encrypted disks) replace the wordmark area with the prompt.
+prompt.sprite = Sprite();
+prompt.sprite.SetPosition(0, word.y + 60 * scale, 7);
+fun password_callback(text, bullets) {
+    dots = "";
+    for (i = 0; i < bullets; i++) dots += "•";
+    img = Image.Text(text + "  " + dots, 0.91, 0.91, 0.93, 1, "Sans 12");
+    prompt.sprite.SetImage(img);
+    prompt.sprite.SetX(screen.w / 2 - img.GetWidth() / 2);
 }
 Plymouth.SetDisplayPasswordFunction(password_callback);
-
-fun normal_callback() {
-    message.sprite.SetImage(Image.Text("", 0, 0, 0));
-}
+fun normal_callback() { prompt.sprite.SetImage(Image.Text("", 0, 0, 0)); }
 Plymouth.SetDisplayNormalFunction(normal_callback);
 
 fun quit_callback() {
-    bar.fg_sprite.SetImage(bar.fg_full);
+    rule.sprite.SetImage(rule.full);
+    rule.sprite.SetX(screen.w / 2 - rule.full.GetWidth() / 2);
+    word.sprite.SetOpacity(1);
+    word.sprite.SetY(word.y);
 }
 Plymouth.SetQuitFunction(quit_callback);

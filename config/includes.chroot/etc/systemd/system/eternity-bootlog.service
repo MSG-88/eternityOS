@@ -1,0 +1,15 @@
+[Unit]
+Description=Eternity 08 boot log lines for the splash screen
+DefaultDependencies=no
+After=plymouth-start.service systemd-udev-trigger.service
+Before=display-manager.service plymouth-quit.service plymouth-quit-wait.service
+ConditionPathExists=/usr/lib/eternity/bootlog.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/eternity/bootlog.sh
+RemainAfterExit=yes
+StandardOutput=null
+
+[Install]
+WantedBy=sysinit.target
