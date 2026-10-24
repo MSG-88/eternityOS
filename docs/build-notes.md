@@ -304,3 +304,14 @@ The owner reported "the boot screen was stuck in the GRUB CLI" on the MSI laptop
 Changes: `tests/run-qemu-usb.sh` (USB-disk boot, UEFI Secure Boot or BIOS, Self-test
 entry) added to `tests/run-all.sh`; README warns to write the image raw (Rufus "DD Image
 mode", `tools\write-usb.ps1`, balenaEtcher) and gives the `grub>` recovery commands.
+
+### write-usb.ps1 on the real stick (2026-10-25)
+
+Two defects surfaced the first time the writer ran against the SanDisk (both fixed):
+`Set-Disk -IsOffline` is refused for removable media ("Not Supported"), and because the
+image is written front to back Windows saw the new GPT at once, mounted two volumes from
+the half-written stick and the raw write died at 4 GB with "The device is not ready".
+The script now skips the offline step with a notice and writes the first megabyte
+(protective MBR + GPT header) last. The second run was progressing normally at 10 MB/s
+when the owner stopped it and wrote the stick with Rufus in DD Image mode instead, so the
+write-last ordering is not yet proven to the end on this hardware.

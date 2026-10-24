@@ -51,15 +51,25 @@ $dev = "\\.\PhysicalDrive$($disk.Number)"
 $buf = New-Object byte[] (4MB)
 $in = [System.IO.File]::OpenRead($isoFull)
 $out = New-Object System.IO.FileStream($dev, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None, 4MB, [System.IO.FileOptions]::WriteThrough)
+# Windows re-reads the partition table as soon as it lands on the stick and mounts the new
+# volumes, which broke a raw write half way ("The device is not ready" after 4 GB on
+# 2026-10-25). So the first megabyte (protective MBR + GPT header) is written last: until
+# then the stick looks blank to Windows and nothing grabs it.
+$HEAD = 1MB
 try {
-  $done = 0; $t0 = Get-Date
+  $t0 = Get-Date; $done = $HEAD; $reported = $HEAD
+  $in.Position = $HEAD; $out.Position = $HEAD
   while (($n = $in.Read($buf, 0, $buf.Length)) -gt 0) {
     if ($n % 512 -ne 0) { $pad = 512 - ($n % 512); [Array]::Clear($buf, $n, $pad); $n += $pad }
     $out.Write($buf, 0, $n); $done += $n
-    if (($done % 256MB) -eq 0) { Write-Host ("  {0:N0} MB written ({1:N1} MB/s)" -f ($done/1MB), ($done/1MB/((Get-Date)-$t0).TotalSeconds)) }
+    if (($done - $reported) -ge 256MB) { $reported = $done; Write-Host ("  {0:N0} MB written ({1:N1} MB/s)" -f ($done/1MB), (($done-$HEAD)/1MB/((Get-Date)-$t0).TotalSeconds)) }
   }
   $out.Flush()
+  $in.Position = 0; $out.Position = 0
+  $n = $in.Read($buf, 0, $HEAD); $out.Write($buf, 0, $n); $out.Flush()
+  Write-Host ("  {0:N0} MB written, partition table in place" -f ($done/1MB))
 } finally { $out.Dispose(); $in.Dispose() }
+
 
 Write-Host 'Verifying the first 64 MB ...'
 $verify = [Math]::Min(64MB, $size)
