@@ -220,3 +220,18 @@ Open: the XFCE session uses about 1.3 GB (`free -m` used) against the spec's 700
 budget; `/proc/meminfo` shows 962 MB anonymous, spread evenly over the GTK processes
 (xfwm4 186 MB, nm-applet 154 MB, xfdesktop 130 MB, each panel plugin wrapper 115 MB).
 A diagnostic run with per-process maps follows.
+
+### Desktop memory: cause found (build 7 diagnostic run)
+
+A diagnostic VM run on the build 7 ISO (`tests/out/memdiag/*.png`) showed that every GTK
+process carried a single 78-112 MB anonymous heap block (xfwm4, each panel plugin wrapper,
+nm-applet, xfdesktop, xfce4-terminal); `MALLOC_ARENA_MAX=2` changed nothing, so it was not
+the allocator. The image had no `icon-theme.cache` in any icon theme: live-build's own
+default hook `9000-remove-gnome-icon-cache.hook.chroot` deletes them "to save space" and
+ran after our `0900` cleanup hook. Without a cache GTK indexes every icon directory at
+startup, and Papirus has 43 000 files. The cleanup hook is now `9900` and rebuilds the
+caches with `gtk-update-icon-cache` (12 s, 3 MB per Papirus theme); `check_desktop`
+asserts the caches exist and are newer than their theme directory (RED on the build 7
+chroot, GREEN after the cache loop). Build 8 measures the session figure. xfwm4 also maps
+libLLVM/gallium for its software-GL compositor under QEMU (49 MB resident, file-backed);
+on real AMD graphics that is hardware-backed.
