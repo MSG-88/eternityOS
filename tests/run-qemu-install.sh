@@ -50,11 +50,12 @@ start)
     grub_settle; Q screendump "$OUT/grub.png"; Q keys Enter
     S 38; Q screendump "$OUT/login.png"
     Q keys eternity Enter; S 25; Q screendump "$OUT/desktop.png"
-    # Launch the installer from a terminal; pkexec asks the live user's password through the
-    # polkit agent.
-    Q keys Ctrl-Alt-T; S 6; Q keys "eternity-install" Enter; S 8; Q screendump "$OUT/pkexec.png"
-    Q keys eternity Enter; S 30; Q screendump "$OUT/installer-welcome.png"
-    echo "installer started; drive it with: $0 $ISO keys ... / shot NAME"
+    # Launch the installer from a terminal. In the live session polkit lets the sudo-group
+    # user run calamares without a prompt (observed in build 8), so nothing is typed blindly
+    # here: a stray keystroke would land in the installer's language box.
+    Q keys Ctrl-Alt-T; S 6; Q keys "eternity-install" Enter; S 40; Q screendump "$OUT/installer-welcome.png"
+    echo "installer started; drive it with: $0 $ISO click X Y / keys ... / shot NAME"
+    echo "notes: libpwquality rejects dictionary-based passwords such as eternity08; the test used Genesis08-vm"
     ;;
 shot)  Q screendump "$OUT/$1.png" && echo "$OUT/$1.png" ;;
 keys)  Q keys "$@" ;;
@@ -68,7 +69,7 @@ boot-disk)
     grub_settle; Q screendump "$OUT/installed-grub.png"; Q keys Enter
     S 38; Q screendump "$OUT/installed-login.png"
     # Installed user as entered in Calamares during the test (see docs/build-notes.md).
-    U=${ETERNITY_INSTALL_USER:-muthu}; P=${ETERNITY_INSTALL_PASSWORD:-eternity08}
+    U=${ETERNITY_INSTALL_USER:-muthu}; P=${ETERNITY_INSTALL_PASSWORD:-Genesis08-vm}
     Q keys "$P" Enter; S 25; Q screendump "$OUT/installed-desktop.png"
     Q keys Ctrl-Alt-T; S 6
     Q keys "head -2 /etc/os-release; getent passwd eternity || echo 'no live user'; systemctl is-enabled eternity-smoke lightdm; ls /usr/share/applications | grep -c eternity-install; mokutil --sb-state; free -m | head -2" Enter
