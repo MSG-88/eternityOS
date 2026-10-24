@@ -72,3 +72,32 @@ branding/       logo, palette, renderers       ai/       lock file, model manife
 tests/          smoke + QEMU suites            tools/    Windows-side helpers (WSL, Hyper-V, USB)
 docs/           design, plan, build notes, screenshots
 ```
+
+## Try it in a VM on this laptop (Hyper-V, no scripts needed)
+
+Hyper-V works even though WSL lost nested virtualization. In Hyper-V Manager:
+
+1. New > Virtual Machine > Generation 2; 4096 MB or more (8192 MB to use the default
+   4B model); 4 virtual processors; a 40 GB dynamic disk (only needed to install).
+2. Settings > Security: Secure Boot enabled, template **Microsoft UEFI Certificate
+   Authority** (the ISO boots through Debian's signed shim).
+3. Settings > SCSI Controller > DVD Drive: attach `out\eternity-08-0.1.0-amd64.iso`;
+   Firmware: put the DVD drive first in the boot order.
+4. Connect and start. GRUB > Eternity 08 Live > greeter: user `eternity`, password
+   `eternity`. The desktop has **Eternity Chat** and **Install Eternity 08**.
+
+Or, from an elevated PowerShell, `.\tools\hyperv-test.ps1 -Iso .\out\eternity-08-0.1.0-amd64.iso -Scenario live`
+does the same and takes screenshots.
+
+## Installing next to Windows (dual boot)
+
+The installer offers **Install alongside** when it finds a resizable partition, and GRUB
+on the installed system lists Windows (os-prober is enabled). Before you start:
+
+- If BitLocker is on for the Windows drive, shrink the Windows partition from Windows
+  first (Disk Management > Shrink Volume, 40 GB or more) and suspend BitLocker for the
+  reboot; Linux cannot resize an encrypted NTFS volume.
+- Keep Secure Boot on; boot the stick with F11 and pick the USB device.
+- Choose the free space (or **Install alongside**), create your user, and install. The
+  live user and the installer are removed from the installed system; `eternity-chat`
+  and the models are kept.

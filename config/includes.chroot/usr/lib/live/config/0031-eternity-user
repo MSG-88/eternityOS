@@ -40,6 +40,13 @@ Config ()
 		usermod -c "Eternity 08 Live" "${LIVE_USERNAME}"
 	fi
 
+	# Live sessions show the greeter image with the credential hint; the file in the
+	# image (and therefore on installed systems) carries the plain wallpaper.
+	if [ -f /etc/lightdm/lightdm-gtk-greeter.conf ]
+	then
+		sed -i 's|^background=.*|background=/usr/share/eternity/greeter-1920x1080.png|' /etc/lightdm/lightdm-gtk-greeter.conf
+	fi
+
 	# Creating state file
 	touch /var/lib/live/config/eternity-user
 }

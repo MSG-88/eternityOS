@@ -94,7 +94,13 @@ check_secureboot() {
 }
 
 check_login() {
-    grep -qs 'greeter-1920x1080.png' /etc/lightdm/lightdm-gtk-greeter.conf || { echo "greeter conf lacks Eternity background"; return 1; }
+    # Live sessions get the hinted greeter image (set by live-config 0031-eternity-user);
+    # the image itself, and so every installed system, carries the plain wallpaper.
+    if grep -q 'boot=live' /proc/cmdline; then
+        grep -qs 'greeter-1920x1080.png' /etc/lightdm/lightdm-gtk-greeter.conf || { echo "live greeter conf lacks the hinted background"; return 1; }
+    else
+        grep -qs '^background=/usr/share/eternity/wallpaper-1920x1080.png' /etc/lightdm/lightdm-gtk-greeter.conf || { echo "greeter conf lacks the plain wallpaper background"; return 1; }
+    fi
     grep -qsx 'autologin-user=' /etc/lightdm/lightdm.conf.d/10-eternity.conf || { echo "10-eternity.conf lacks empty autologin-user"; return 1; }
     [ "$(systemctl is-enabled lightdm 2>/dev/null)" = enabled ] || { echo "lightdm not enabled"; return 1; }
     if grep -qs 'autologin-user=eternity' /etc/lightdm/lightdm.conf.d/*.conf /etc/lightdm/lightdm.conf; then

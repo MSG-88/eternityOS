@@ -30,6 +30,7 @@ echo "INFO accel: $ACCEL_NAME timeout=${TIMEOUT}s"
 timeout --foreground "$TIMEOUT" qemu-system-x86_64 \
     "${QEMU_ACCEL[@]}" -m "$MEM" -smp 4 \
     -nic none -display none -no-reboot \
+    -qmp "unix:/tmp/eternity-qmp-smoke.sock,server,nowait" \
     -cdrom "$ISO" \
     -kernel "$OUT/vmlinuz" -initrd "$OUT/initrd.img" \
     -append "boot=live components quiet splash locales=en_US.UTF-8 username=eternity hostname=eternity live-config.noautologin noeject eternity.test console=ttyS0,115200 $APPEND_EXTRA" \

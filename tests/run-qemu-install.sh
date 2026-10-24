@@ -57,6 +57,39 @@ start)
     echo "installer started; drive it with: $0 $ISO click X Y / keys ... / shot NAME"
     echo "notes: libpwquality rejects dictionary-based passwords such as eternity08; the test used Genesis08-vm"
     ;;
+auto)
+    # Unattended install: pages are driven by clicks at the 1280x800 positions verified on
+    # build 8 (Next, Erase disk, user fields, Install, Install Now); completion is read from
+    # Calamares' session log, which a second terminal streams to the serial port.
+    "$0" "$ISO" start || exit 1
+    U=${ETERNITY_INSTALL_USER:-muthu}; P=${ETERNITY_INSTALL_PASSWORD:-Genesis08-vm}
+    Q keys Ctrl-Alt-T; S 6
+    Q keys 'sudo sh -c "tail -n +1 -F /root/.cache/calamares/session.log > /dev/ttyS0"' Enter; S 3
+    Q click 600 108; S 2                       # raise the installer window again
+    Q click 1013 745; S 12; Q screendump "$OUT/auto-location.png"
+    Q click 1013 745; S 12; Q screendump "$OUT/auto-keyboard.png"
+    Q click 1013 745; S 25; Q screendump "$OUT/auto-partitions.png"
+    Q click 337 192;  S 8;  Q screendump "$OUT/auto-erase.png"      # Erase disk
+    Q click 1013 745; S 15
+    Q click 430 171; S 2; Q keys "Muthu"; S 3
+    Q click 430 287; S 2; Q keys Ctrl-A; S 1; Q keys "eternity-vm"; S 3
+    Q click 430 349; S 2; Q keys "$P"; S 2
+    Q click 635 349; S 2; Q keys "$P"; S 4; Q screendump "$OUT/auto-users.png"
+    Q click 1013 745; S 15; Q screendump "$OUT/auto-summary.png"
+    Q click 1013 751; S 10; Q screendump "$OUT/auto-confirm.png"   # Install
+    Q click 749 449; S 10; Q screendump "$OUT/auto-installing.png" # Install Now
+    t0=$(date +%s)
+    while true; do
+        sleep 60
+        grep -q 'Unmounting file systems' "$OUT/serial.log" 2>/dev/null && break
+        grep -qE 'Installation Failed|job failed|ERROR:' "$OUT/serial.log" 2>/dev/null && { echo "install reported a failure (see $OUT/serial.log)"; break; }
+        kill -0 "$(cat "$PIDF")" 2>/dev/null || { echo "qemu exited during the install"; break; }
+        [ $(( $(date +%s) - t0 )) -gt $(( 5400 * TSCALE / 10 + 1800 )) ] && { echo "install timed out"; break; }
+    done
+    S 9; Q screendump "$OUT/auto-done.png"
+    grep -aE 'Starting job|Installation|failed' "$OUT/serial.log" | tr -d '\r' | tail -8
+    echo "install phase finished after $(( ( $(date +%s) - t0 ) / 60 )) min; next: $0 $ISO stop && $0 $ISO boot-disk"
+    ;;
 shot)  Q screendump "$OUT/$1.png" && echo "$OUT/$1.png" ;;
 keys)  Q keys "$@" ;;
 click) Q click "$@" ;;
@@ -72,7 +105,7 @@ boot-disk)
     U=${ETERNITY_INSTALL_USER:-muthu}; P=${ETERNITY_INSTALL_PASSWORD:-Genesis08-vm}
     Q keys "$P" Enter; S 25; Q screendump "$OUT/installed-desktop.png"
     Q keys Ctrl-Alt-T; S 6
-    Q keys "head -2 /etc/os-release; getent passwd eternity || echo 'no live user'; systemctl is-enabled eternity-smoke lightdm; ls /usr/share/applications | grep -c eternity-install; mokutil --sb-state; free -m | head -2" Enter
+    Q keys "head -2 /etc/os-release; getent passwd eternity || echo 'no live user'; systemctl is-enabled eternity-smoke lightdm; ls /usr/share/applications | grep -c eternity-install; grep background= /etc/lightdm/lightdm-gtk-greeter.conf; ls /etc/lightdm/lightdm.conf.d/ /etc/calamares 2>&1 | head -3; dpkg -l live-config calamares 2>&1 | grep -c '^ii'; mokutil --sb-state; free -m | head -2" Enter
     S 4; Q screendump "$OUT/installed-terminal.png"
     Q keys "clear; eternity-chat --small --ask 'Reply with the single word PONG.'" Enter
     S 60; Q screendump "$OUT/installed-chat.png"
