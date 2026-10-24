@@ -200,13 +200,13 @@ class Shell(Gtk.Window):
             self.c_install.set("Try, then install", "Everything you do now stays in memory.", "")
             inst = button("Install Eternity 08", "primary", on_click=lambda: subprocess.Popen(["eternity-install"]))
             self.c_install.pack_start(inst, False, False, 4)
-            self.fixed.put(self.c_install, int(self.cx - 120), int(self.cy + 300 * self.unit))
+            self.fixed.put(self.c_install, int(self.cx - 120), int(self.cy + 250 * self.unit))
 
         # command hint
         self.hint = button("Ask Eternity, or type a command        Super + Space", "ghost",
                            on_click=lambda: subprocess.Popen(["eternity-ask"]))
         self.hint.get_style_context().add_class("status-strip")
-        self.fixed.put(self.hint, int(self.w / 2 - 260), int(self.h - 70 * self.unit))
+        self.fixed.put(self.hint, int(self.w / 2 - 260), int(self.h - 46 * self.unit))
 
         # the mark is clickable: an invisible event box over it opens the launcher
         ev = Gtk.EventBox()

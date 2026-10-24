@@ -124,10 +124,12 @@ class SecretStore:
             import secretstorage  # type: ignore
 
             conn = secretstorage.dbus_init()
-            coll = secretstorage.get_default_collection(conn)
-            if coll.is_locked():
-                coll.unlock()
-            self._ss = (secretstorage, conn, coll)
+            # never create or unlock a collection here: both raise a GUI prompt that can block
+            # a window that is still starting; use an existing unlocked keyring or the file
+            colls = list(secretstorage.get_all_collections(conn))
+            coll = next((c for c in colls if c.get_label().lower() in ("login", "default")), None) or (colls[0] if colls else None)
+            if coll is not None and not coll.is_locked():
+                self._ss = (secretstorage, conn, coll)
         except Exception:
             self._ss = None
 
