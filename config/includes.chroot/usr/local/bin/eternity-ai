@@ -1,0 +1,56 @@
+#!/bin/bash
+# eternity-ai: status of the local AI stack.
+#   eternity-ai status   OS, hardware, models, Python stack, llama.cpp
+#   eternity-ai models   bundled models
+#   eternity-ai serve    how to enable the always-on model endpoint
+set -u
+MODELS_DIR=${ETERNITY_MODELS_DIR:-/opt/eternity/models}
+VENV=/opt/eternity/venv
+
+models() {
+    local f
+    for role in default small; do
+        f=$MODELS_DIR/$role.gguf
+        if [ -f "$f" ]; then
+            printf '  %-8s %-32s %6s  %s\n' "$role" "$(basename "$(readlink -f "$f")")" \
+                "$(du -h "$(readlink -f "$f")" | cut -f1)" "$(grep -o "\"$role\": {[^}]*licence\": \"[^\"]*\"" "$MODELS_DIR/models.json" 2>/dev/null | sed 's/.*licence": "//;s/"//')"
+        else
+            printf '  %-8s (missing)\n' "$role"
+        fi
+    done
+}
+
+case ${1:-status} in
+    status)
+        . /etc/os-release 2>/dev/null
+        echo "${PRETTY_NAME:-Eternity 08}  ·  kernel $(uname -r)"
+        echo "CPU:     $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | sed 's/^ //')  ($(nproc) threads)"
+        echo "Memory:  $(free -h | awk '/^Mem:/ {print $2 " total, " $7 " available"}')"
+        echo "Models:  ($MODELS_DIR)"; models
+        if [ -x "$VENV/bin/python" ]; then
+            echo "Python:  $("$VENV"/bin/python - <<'PY' 2>/dev/null
+import platform, torch, transformers, sklearn, numpy
+print(f"{platform.python_version()}  torch {torch.__version__}  transformers {transformers.__version__}  scikit-learn {sklearn.__version__}  numpy {numpy.__version__}")
+PY
+)"
+            echo "         venv: $VENV  (activate: source $VENV/bin/activate)"
+        else
+            echo "Python:  venv missing at $VENV"
+        fi
+        if command -v llama-cli >/dev/null; then
+            echo "llama.cpp: $(cat /usr/local/share/llama-cpp.version 2>/dev/null || echo installed)  ($(command -v llama-cli))"
+        else
+            echo "llama.cpp: not installed"
+        fi
+        echo "Endpoint: llama-server.service is $(systemctl is-enabled llama-server 2>/dev/null || echo absent) (eternity-ai serve)"
+        ;;
+    models) models ;;
+    serve)
+        cat <<EOF
+Enable the always-on local endpoint (OpenAI-compatible API on http://127.0.0.1:8080):
+  sudo systemctl enable --now llama-server
+Then: curl http://127.0.0.1:8080/v1/models
+EOF
+        ;;
+    *) echo "usage: eternity-ai [status|models|serve]" >&2; exit 2 ;;
+esac

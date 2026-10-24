@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Eternity Chat
+GenericName=Local AI assistant
+Comment=Chat with the bundled local language model (runs offline)
+Exec=xfce4-terminal --title "Eternity Chat" --geometry 110x32 -e eternity-chat
+Icon=eternity
+Terminal=false
+Categories=Utility;
+Keywords=ai;chat;llm;assistant;eternity;

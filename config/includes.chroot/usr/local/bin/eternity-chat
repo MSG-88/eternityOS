@@ -1,0 +1,66 @@
+#!/bin/bash
+# eternity-chat: talk to the bundled local model (llama.cpp, CPU).
+#
+#   eternity-chat                     interactive chat with the default model (auto-picks the
+#                                     small model when free memory is low)
+#   eternity-chat --small|--default   force a bundled model
+#   eternity-chat --model PATH        any GGUF file
+#   eternity-chat --ask "question"    one answer, non-interactive
+#   eternity-chat --think             let the model reason first (slower)
+#   eternity-chat --system TEXT       override the system prompt
+#   eternity-chat -- ARGS...          extra llama.cpp arguments
+set -u
+MODELS_DIR=${ETERNITY_MODELS_DIR:-/opt/eternity/models}
+MIN_MEM_KB=${ETERNITY_MIN_MEM_KB:-5500000}
+SYSTEM="You are Eternity, the local assistant of Eternity 08. Answer concisely."
+choice="" model="" ask="" think=0 extra=()
+
+while [ $# -gt 0 ]; do
+    case $1 in
+        --small) choice=small ;;
+        --default) choice=default ;;
+        --model) model=$2; shift ;;
+        --ask) ask=$2; shift ;;
+        --think) think=1 ;;
+        --system) SYSTEM=$2; shift ;;
+        -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+        --) shift; extra=("$@"); break ;;
+        *) echo "unknown option: $1" >&2; exit 2 ;;
+    esac
+    shift
+done
+
+mem_available_kb() {
+    if [ -n "${MEMAVAILABLE_KB:-}" ]; then echo "$MEMAVAILABLE_KB"; return; fi
+    awk '/^MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0
+}
+
+select_model() {
+    if [ -n "$model" ]; then echo "$model"; return; fi
+    if [ -z "$choice" ]; then
+        if [ "$(mem_available_kb)" -lt "$MIN_MEM_KB" ]; then choice=small; else choice=default; fi
+    fi
+    echo "$MODELS_DIR/$choice.gguf"
+}
+
+MODEL=$(select_model)
+if [ -n "${ETERNITY_DRY_RUN:-}" ]; then echo "$MODEL"; exit 0; fi
+[ -f "$MODEL" ] || { echo "model not found: $MODEL (run 'eternity-ai models')" >&2; exit 1; }
+
+# llama-completion is the classic CLI (stable flags); fall back to llama-cli.
+BIN=$(command -v llama-completion || command -v llama-cli) || { echo "llama.cpp is not installed" >&2; exit 1; }
+THREADS=$(nproc)
+name=$(basename "$(readlink -f "$MODEL")" .gguf)
+args=(-m "$MODEL" -c 4096 -t "$THREADS" -sys "$SYSTEM" --temp 0.6 --top-p 0.95 --no-display-prompt)
+if [ "$think" = 0 ] && "$BIN" --help 2>&1 | grep -q -- '--reasoning-budget'; then
+    args+=(--reasoning-budget 0)
+fi
+
+if [ -n "$ask" ]; then
+    "$BIN" "${args[@]}" -st -n 256 --temp 0 -p "$ask" "${extra[@]}" 2>/dev/null \
+        | sed -e '/^<think>/,/^<\/think>/d' -e 's/ \[end of text\]//' -e '/^[[:space:]]*$/d'
+    exit "${PIPESTATUS[0]}"
+fi
+
+printf '\033[36mEternity 08\033[0m · %s · %s threads · Ctrl-C to quit\n' "$name" "$THREADS"
+exec "$BIN" "${args[@]}" --color -cnv "${extra[@]}"
