@@ -60,6 +60,10 @@ the build chroot without a VM.
 Boot the laptop from the stick (MSI: press F11 at power-on and pick the USB
 device). Secure Boot can stay enabled.
 
+Windows blocks unsigned scripts by default; run them as
+`powershell -ExecutionPolicy Bypass -File .\tools\write-usb.ps1 -List` (same for
+the Hyper-V driver) or set `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` once.
+
 ## Layout
 
 ```
