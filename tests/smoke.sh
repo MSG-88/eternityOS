@@ -143,6 +143,12 @@ check_installer() {
     command -v grub-install >/dev/null && command -v update-grub >/dev/null || { echo "grub-install/update-grub missing"; return 1; }
     [ -x /etc/kernel/postinst.d/zz-update-grub ] || { echo "kernel postinst hook zz-update-grub missing"; return 1; }
     dpkg -s mate-polkit >/dev/null 2>&1 || { echo "no polkit agent (mate-polkit) for pkexec calamares"; return 1; }
+    # EFI fallback: Calamares must not copy the bare signed GRUB to EFI/boot (grub> prompt);
+    # post-install.sh installs shim+GRUB+grub.cfg there instead when Windows does not own it.
+    grep -qsE '^installEFIFallback: *false' /etc/calamares/modules/bootloader.conf || { echo "bootloader.conf does not set installEFIFallback: false"; return 1; }
+    grep -qsE '^efiBootloaderId: *"Eternity_08"' /etc/calamares/modules/bootloader.conf || { echo "bootloader.conf lacks efiBootloaderId Eternity_08"; return 1; }
+    grep -qs -- '--force-extra-removable' /usr/lib/eternity/post-install.sh || { echo "post-install.sh does not install the removable fallback loader"; return 1; }
+    grep -qs 'EFI/BOOT/grub.cfg' /usr/lib/eternity/post-install.sh || { echo "post-install.sh does not copy grub.cfg to EFI/BOOT"; return 1; }
 }
 
 check_venv() {

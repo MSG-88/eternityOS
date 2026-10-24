@@ -9,6 +9,7 @@
 #   tests/run-qemu-install.sh <iso> click X Y    click at screen pixel (1280x800; usb-tablet pointer)
 #   tests/run-qemu-install.sh <iso> stop         power the VM off (keeps the disk and the OVMF vars)
 #   tests/run-qemu-install.sh <iso> boot-disk    boot the installed system from the disk (no ISO)
+#   tests/run-qemu-install.sh <iso> boot-fallback boot the disk with fresh NVRAM (EFI/BOOT path); CHECK efi-fallback
 #   tests/run-qemu-install.sh <iso> wipe         delete the disk image and the OVMF vars
 #
 # The same OVMF_VARS file is reused across runs so the boot entry grub-install adds with
@@ -111,6 +112,26 @@ boot-disk)
     S 60; Q screendump "$OUT/installed-chat.png"
     echo "installed-system screenshots in $OUT (user $U)"
     ;;
-wipe)  rm -f "$DISK" "$VARS"; echo wiped ;;
-*)     echo "usage: $0 <iso> start|shot NAME|keys K...|stop|boot-disk|wipe" >&2; exit 2 ;;
+boot-fallback)
+    # Boot the installed disk with FRESH firmware variables: no "Eternity_08" NVRAM entry, so
+    # the firmware takes the removable path EFI/BOOT/BOOTX64.EFI. Build 8 landed at a bare
+    # grub> prompt here (Calamares installEFIFallback); post-install.sh now installs shim +
+    # GRUB + grub.cfg there. PASS when the themed menu appears and the system boots to the greeter.
+    [ -f "$DISK" ] || { echo "no installed disk in $OUT" >&2; exit 2; }
+    SAVED=$VARS; VARS=$OUT/OVMF_VARS_fallback.fd; cp /usr/share/OVMF/OVMF_VARS_4M.ms.fd "$VARS"
+    launch
+    echo "INFO accel: $ACCEL_NAME (installed disk via EFI/BOOT fallback, fresh NVRAM)"
+    grub_settle; Q screendump "$OUT/fallback-grub.png"
+    python3 "$HERE/grubshot-check.py" "$OUT/fallback-grub.png" | sed 's/^/INFO /'
+    if python3 "$HERE/grubshot-check.py" "$OUT/fallback-grub.png" menu; then
+        Q keys Enter; S 38; Q screendump "$OUT/fallback-login.png"
+        echo "CHECK efi-fallback: PASS themed GRUB menu via EFI/BOOT"
+    else
+        echo "CHECK efi-fallback: FAIL no themed menu via EFI/BOOT (see $OUT/fallback-grub.png)"
+        VARS=$SAVED; exit 1
+    fi
+    VARS=$SAVED
+    ;;
+wipe)  rm -f "$DISK" "$VARS" "$OUT/OVMF_VARS_fallback.fd"; echo wiped ;;
+*)     echo "usage: $0 <iso> start|auto|shot NAME|keys K...|stop|boot-disk|boot-fallback|wipe" >&2; exit 2 ;;
 esac
