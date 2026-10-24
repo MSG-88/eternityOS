@@ -11,6 +11,8 @@ cp -f out/eternity-08-0.1.0-amd64.iso out/eternity-08-0.1.0-amd64-build9.iso 2>/
 rm -f tests/out/install/*.png tests/out/install/*.ppm tests/out/install/progress-* 2>/dev/null
 sync; echo 3 > /proc/sys/vm/drop_caches
 export ETERNITY_QEMU_MEM=3072
+# the owner's progress page shows the running test VM
+pgrep -f live-loop.sh >/dev/null || setsid nohup bash "$REPO/tools/dev/live-loop.sh" > /srv/eternity-build/tests/out/live-loop.log 2>&1 < /dev/null &
 echo "chain10: build starting $(date)" > "$LOG"
 bash "$REPO/build.sh" --test >> "$LOG" 2>&1; rc=$?
 echo "BUILD10 SUITE rc=$rc $(date)" >> "$LOG"
