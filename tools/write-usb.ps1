@@ -40,9 +40,12 @@ Write-Host ("Image : {0}  {1:N2} GB" -f $isoFull, ($size/1GB))
 if (-not $PSCmdlet.ShouldProcess("disk $($disk.Number) ($($disk.FriendlyName))", "ERASE and write $isoFull")) { return }
 
 Write-Host 'Clearing the disk ...'
-Clear-Disk -Number $disk.Number -RemoveData -RemoveOEM -Confirm:$false
-Set-Disk -Number $disk.Number -IsOffline $true
-Set-Disk -Number $disk.Number -IsReadOnly $false
+if ($disk.PartitionStyle -ne 'RAW') { Clear-Disk -Number $disk.Number -RemoveData -RemoveOEM -Confirm:$false }
+# Fixed disks are taken offline so Windows leaves them alone during the raw write. Removable
+# media cannot be set offline ("Not Supported"); after Clear-Disk they have no volumes left
+# that could interfere, so the write proceeds without it.
+try { Set-Disk -Number $disk.Number -IsOffline $true -ErrorAction Stop } catch { Write-Host "  (cannot take the disk offline: $($_.Exception.Message.Trim()); continuing)" }
+try { Set-Disk -Number $disk.Number -IsReadOnly $false -ErrorAction Stop } catch {}
 
 $dev = "\\.\PhysicalDrive$($disk.Number)"
 $buf = New-Object byte[] (4MB)
