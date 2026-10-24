@@ -83,8 +83,11 @@ auto)
     t0=$(date +%s)
     while true; do
         sleep 60
-        grep -q 'Unmounting file systems' "$OUT/serial.log" 2>/dev/null && break
-        grep -qE 'Installation Failed|job failed|ERROR:' "$OUT/serial.log" 2>/dev/null && { echo "install reported a failure (see $OUT/serial.log)"; break; }
+        # Calamares lists every job (incl. 'Unmounting file systems') when the install starts and
+        # logs a harmless 'ERROR: Could not inhibit sleep'; only the *started* last job and real
+        # job failures end the wait (build 10 chain stopped the VM after 2 min on the listing).
+        grep -q 'Starting job "Unmounting file systems' "$OUT/serial.log" 2>/dev/null && break
+        grep -qE 'Installation Failed|[Jj]ob failed|FAILED' "$OUT/serial.log" 2>/dev/null && { echo "install reported a failure (see $OUT/serial.log)"; break; }
         kill -0 "$(cat "$PIDF")" 2>/dev/null || { echo "qemu exited during the install"; break; }
         [ $(( $(date +%s) - t0 )) -gt $(( 5400 * TSCALE / 10 + 1800 )) ] && { echo "install timed out"; break; }
     done

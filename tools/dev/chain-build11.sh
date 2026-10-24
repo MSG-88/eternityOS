@@ -22,6 +22,20 @@ run() { local name=$1; shift; echo "chain11: $name starting $(date)" >> "$LOG"; 
 run visual     bash tests/run-qemu-visual.sh "$ISO"
 mkdir -p "$REPO/tests/out/build11" && cp -f tests/out/*.png tests/out/*.log "$REPO/tests/out/build11/" 2>/dev/null
 echo "BUILD11 VISUAL DONE $(date)" >> "$LOG"
+rm -f tests/out/install/*.png tests/out/install/*.ppm tests/out/install/progress-* 2>/dev/null
+bash tests/run-qemu-install.sh "$ISO" wipe >> "$LOG" 2>&1
+echo "chain11: install auto starting $(date)" >> "$LOG"
+bash tests/run-qemu-install.sh "$ISO" auto >> "$LOG" 2>&1
+bash tests/run-qemu-install.sh "$ISO" stop >> "$LOG" 2>&1; sleep 5
+cp -f tests/out/install/serial.log tests/out/install/serial-install.log
+echo "chain11: boot-disk starting $(date)" >> "$LOG"
+bash tests/run-qemu-install.sh "$ISO" boot-disk >> "$LOG" 2>&1
+sleep 30; bash tests/run-qemu-install.sh "$ISO" stop >> "$LOG" 2>&1; sleep 3
+echo "chain11: boot-fallback starting $(date)" >> "$LOG"
+bash tests/run-qemu-install.sh "$ISO" boot-fallback >> "$LOG" 2>&1; echo "-> boot-fallback rc=$?" >> "$LOG"
+bash tests/run-qemu-install.sh "$ISO" stop >> "$LOG" 2>&1
+mkdir -p "$REPO/tests/out/build11-install" && cp -a tests/out/install/. "$REPO/tests/out/build11-install/" 2>/dev/null
+echo "BUILD11 INSTALL DONE $(date)" >> "$LOG"
 run smoke      bash tests/run-qemu-smoke.sh "$ISO"
 cp -f tests/out/serial.log tests/out/serial-smoke.log 2>/dev/null
 run secureboot bash tests/run-qemu-visual.sh "$ISO" --selftest
