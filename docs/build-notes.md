@@ -235,3 +235,12 @@ asserts the caches exist and are newer than their theme directory (RED on the bu
 chroot, GREEN after the cache loop). Build 8 measures the session figure. xfwm4 also maps
 libLLVM/gallium for its software-GL compositor under QEMU (49 MB resident, file-backed);
 on real AMD graphics that is hardware-backed.
+
+## Build 8 (2026-10-24, 41 min, 5.9 GB): icon caches restored, desktop within budget
+
+Smoke PASS, Secure Boot PASS (enabled), screenshot run PASS. In the XFCE session
+`free -m` now reports **665 MB used** (build 7: 1309 MB); anonymous memory 284 MB (962),
+nm-applet 52 MB (154), each panel plugin wrapper 45-50 MB (115), xfwm4 144 MB (186, of
+which 49 MB is libLLVM for the software-GL compositor under QEMU; hardware GL on the
+laptop). Within the 700 MB idle budget of the spec even with the terminal and fastfetch
+open. Screenshots: `docs/screenshots/build8-*.png`.
