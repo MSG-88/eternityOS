@@ -50,9 +50,14 @@ S 30; Q screendump "$OUT/login.png"
 echo "INFO login screenshot at t=$(( $(date +%s) - t0 ))s"
 # lightdm-gtk-greeter preselects the only user, so the password field has focus
 Q keys eternity Enter
-S 25; Q screendump "$OUT/desktop.png"
+# Phase 2: the first-run wizard opens on the first login; capture it, then close it (Alt-F4)
+# so the keystrokes below reach the terminal. The presence shell is the desktop behind it.
+S 25; Q screendump "$OUT/firstrun.png"
+Q keys Alt-F4; S 4; Q screendump "$OUT/desktop.png"
 Q keys Ctrl-Alt-T; S 6; Q keys "free -m" Enter; S 2; Q screendump "$OUT/terminal.png"
 # Where the desktop session's memory goes (build 6 showed 1.3 GB used under XFCE).
 Q keys "clear; ps -eo rss,comm --sort=-rss | head -14; grep -E 'AnonPages|Slab|Shmem|KReclaimable' /proc/meminfo" Enter
 S 2; Q screendump "$OUT/terminal-mem.png"
-echo "screenshots in $OUT: grub.png splash.png login.png desktop.png terminal.png terminal-mem.png"
+# The command bar and the launcher, for the record
+Q keys "eternity-ask &" Enter; S 6; Q screendump "$OUT/ask.png"; Q keys Esc; S 2
+echo "screenshots in $OUT: grub.png splash.png login.png firstrun.png desktop.png terminal.png terminal-mem.png ask.png"

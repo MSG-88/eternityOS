@@ -17,6 +17,7 @@ import shutil
 import sqlite3
 import struct
 import subprocess
+import threading
 import time
 import urllib.request
 from dataclasses import dataclass
@@ -189,7 +190,9 @@ class Index:
     def __init__(self, path: Optional[str] = None, embedder: Optional[Embedder] = None):
         self.path = path or os.path.join(S.state_dir(), "index.sqlite")
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        self.db = sqlite3.connect(self.path)
+        # the GTK windows call build() and search() from worker threads
+        self.db = sqlite3.connect(self.path, check_same_thread=False)
+        self.lock = threading.RLock()
         self.db.execute("CREATE TABLE IF NOT EXISTS files (path TEXT PRIMARY KEY, mtime REAL, size INTEGER, kind TEXT, embedder TEXT, vec BLOB)")
         self.db.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
         self.embedder = embedder
@@ -222,6 +225,10 @@ class Index:
 
     def build(self, roots: Optional[Iterable[str]] = None, progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
         """Index new and changed files, drop vanished ones. Returns counts."""
+        with self.lock:
+            return self._build(roots, progress)
+
+    def _build(self, roots, progress) -> Dict[str, int]:
         emb = self._emb()
         name = self.embedder_name
         present = self.scan(roots)
@@ -259,9 +266,14 @@ class Index:
         return {"indexed": done, "removed": len(gone), "total": self.db.execute("SELECT COUNT(*) FROM files").fetchone()[0]}
 
     def count(self) -> int:
-        return self.db.execute("SELECT COUNT(*) FROM files").fetchone()[0]
+        with self.lock:
+            return self.db.execute("SELECT COUNT(*) FROM files").fetchone()[0]
 
     def search(self, query: str, k: int = 24) -> List[Hit]:
+        with self.lock:
+            return self._search(query, k)
+
+    def _search(self, query: str, k: int) -> List[Hit]:
         emb = self._emb()
         name = self.embedder_name
         q = emb([f"query: {query}"])[0]
