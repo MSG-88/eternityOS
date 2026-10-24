@@ -5,6 +5,8 @@ Usage:
   qmp.py SOCK screendump OUT.png
   qmp.py SOCK keys "eternity" Enter          # types text, then named keys
   qmp.py SOCK key ret                        # one QEMU key name (ret, down, tab, ...)
+  qmp.py SOCK click X Y [left|right]         # absolute pointer click at screen pixel (usb-tablet)
+  qmp.py SOCK dblclick X Y
   qmp.py SOCK wait-ready
 """
 import json
@@ -24,7 +26,11 @@ KEYMAP = {" ": "spc", ".": "dot", "-": "minus", "/": "slash", ",": "comma", "_":
           "[": "bracket_left", "]": "bracket_right", "{": ("shift", "bracket_left"),
           "}": ("shift", "bracket_right"), "`": "grave_accent", "~": ("shift", "grave_accent")}
 NAMED = {"Enter": "ret", "Tab": "tab", "Down": "down", "Up": "up", "Esc": "esc", "Space": "spc",
-         "Left": "left", "Right": "right", "Ctrl-Alt-T": ("ctrl", "alt", "t")}
+         "Left": "left", "Right": "right", "Backspace": "backspace", "Delete": "delete",
+         "Ctrl-Alt-T": ("ctrl", "alt", "t"), "Ctrl-A": ("ctrl", "a"),
+         "Alt-N": ("alt", "n"), "Alt-B": ("alt", "b"), "Alt-I": ("alt", "i"), "Alt-D": ("alt", "d"),
+         "Alt-F4": ("alt", "f4")}
+SCREEN_W, SCREEN_H = 1280, 800   # the virtio-vga mode the tests screenshot at
 
 
 class QMP:
@@ -75,6 +81,19 @@ class QMP:
             else:
                 self.keys([ch])
 
+    def click(self, x, y, button="left"):
+        """Click at pixel (x, y) through an absolute pointer (needs -device usb-tablet)."""
+        ax = int(x * 32767 / SCREEN_W)
+        ay = int(y * 32767 / SCREEN_H)
+        move = [{"type": "abs", "data": {"axis": "x", "value": ax}},
+                {"type": "abs", "data": {"axis": "y", "value": ay}}]
+        self.cmd("input-send-event", events=move)
+        time.sleep(0.15)
+        self.cmd("input-send-event", events=[{"type": "btn", "data": {"down": True, "button": button}}])
+        time.sleep(0.1)
+        self.cmd("input-send-event", events=[{"type": "btn", "data": {"down": False, "button": button}}])
+        time.sleep(0.2)
+
     def screendump(self, out_png):
         ppm = out_png + ".ppm"
         self.cmd("screendump", filename=ppm)
@@ -96,6 +115,10 @@ def main():
                 q.type_text(arg)
     elif action == "key":
         q.keys(sys.argv[3:])
+    elif action == "click":
+        q.click(int(sys.argv[3]), int(sys.argv[4]), sys.argv[5] if len(sys.argv) > 5 else "left")
+    elif action == "dblclick":
+        q.click(int(sys.argv[3]), int(sys.argv[4])); q.click(int(sys.argv[3]), int(sys.argv[4]))
     elif action == "wait-ready":
         pass
     else:
