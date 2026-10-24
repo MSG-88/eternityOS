@@ -1,0 +1,6 @@
+#!/bin/sh
+# Eternity 08 first-run wizard (greeting, name, unlock methods, assistant choice).
+#   eternity-firstrun               run it again
+#   eternity-firstrun --autostart   from /etc/xdg/autostart: exits when already completed
+#   eternity-firstrun --reset       start over
+exec /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity.ui import firstrun; sys.exit(firstrun.main())' "$@"

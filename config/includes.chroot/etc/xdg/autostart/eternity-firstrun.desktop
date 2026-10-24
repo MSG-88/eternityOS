@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Eternity 08 first run
+Comment=Greeting, name, unlock methods and assistant choice (runs once)
+Exec=eternity-firstrun --autostart
+Icon=eternity
+OnlyShowIn=XFCE;
+NoDisplay=true
+StartupNotify=false
+X-XFCE-Autostart-Override=true
+X-GNOME-Autostart-Delay=4
