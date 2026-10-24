@@ -315,3 +315,59 @@ The script now skips the offline step with a notice and writes the first megabyt
 (protective MBR + GPT header) last. The second run was progressing normally at 10 MB/s
 when the owner stopped it and wrote the stick with Rufus in DD Image mode instead, so the
 write-last ordering is not yet proven to the end on this hardware.
+
+## Second real-hardware attempt (2026-10-25 night): `grub>` again, root causes settled
+
+The owner rewrote the stick (Rufus 4.13) and the MSI laptop again stopped at `grub>`.
+`Get-Disk`/`Get-Partition` showed the stick was still a Rufus **ISO Image mode** copy, now
+GPT: a 57.7 GB NTFS "ETERNITY08" partition with the ISO tree plus a 1 MB FAT "UEFI_NTFS"
+partition (`autorun.inf` by Rufus). The firmware's boot entries (`bcdedit /enum firmware`,
+elevated) list "UEFI: SanDisk, Partition 1" (the NTFS volume) first: the firmware loads
+`EFI/boot/bootx64.efi` (shim) straight from NTFS, shim loads the signed `grubx64.efi`.
+
+Reproduction in QEMU (`tests` session scripts, OVMF with Microsoft keys, Secure Boot on):
+a GPT image with p1 = NTFS carrying the ISO tree (squashfs stubbed) and p2 = the real
+1 MB UEFI:NTFS partition copied from the stick lands at the same `grub>`. Typed at the
+prompt: `root=hd0,gpt1 prefix=(hd0,gpt1)/boot/grub cmdpath=` (GRUB knows which partition
+it came from), `ls` shows `(memdisk) (hd0) (hd0,gpt2) (hd0,gpt1)`, but
+`ls (hd0,gpt1)/` answers **error: unknown filesystem**, `search --file --set=root
+/.disk/info` finds no device, and `configfile (hd0,gpt1)/boot/grub/grub.cfg` cannot be
+read. The same image booted with Secure Boot **off** (plain OVMF) reaches the themed
+Eternity menu. Debian's signed GRUB 2.12-9+deb13u2 carries the `ntfs` module but does
+not use it under Secure Boot lockdown, so an extracted (NTFS) stick can never boot with
+Secure Boot on; the raw image (ISO9660 + FAT ESP) is unaffected. README updated.
+
+Resolution for the laptop: the stick was written raw from Windows with
+`tools\write-usb.ps1` (elevated) and verified by hashing the whole image back from the
+device. Note for future sessions: UAC on this laptop elevates administrators without a
+prompt, so `Start-Process -Verb RunAs` runs unattended.
+
+### Installed-system `grub>` through EFI/BOOT: fixed
+
+Experiment: a disk with an ESP populated by `grub-install --force-extra-removable
+--bootloader-id=Eternity_08` (shim as `EFI/BOOT/BOOTX64.EFI`, `grubx64.efi`, `mmx64.efi`;
+`EFI/Eternity_08/{shimx64,grubx64,mmx64,fbx64}.efi`, `grub.cfg`, `BOOTX64.CSV`) and an
+ext4 root with `/boot/grub/grub.cfg`, booted under OVMF with **fresh** variables (no NVRAM
+entry, so the firmware takes `EFI/BOOT`): `grub>` prompt. With `EFI/Eternity_08/grub.cfg`
+copied to `EFI/BOOT/grub.cfg`: the menu appears. Debian's signed `grubx64.efi` is built
+for prefix `/EFI/debian` and otherwise reads `grub.cfg` next to itself; with the
+bootloader id Eternity_08 only the NVRAM path finds it.
+
+Fix (commit 60f08ce): `config/includes.chroot/etc/calamares/modules/bootloader.conf`
+(`installEFIFallback: false`, `efiBootloaderId: "Eternity_08"`) and `post-install.sh`
+installing the removable fallback with `grub.cfg` beside it, unless `EFI/Microsoft/Boot`
+exists (Windows keeps its own fallback loader; the "Eternity_08" firmware entry boots
+Eternity and GRUB's os-prober lists Windows). Test: `tests/run-qemu-install.sh
+boot-fallback` (fresh OVMF variables, screenshot graded by `tests/grubshot-check.py`),
+run by `tools/dev/chain-build9.sh` after the unattended install.
+
+### Host-side findings the same night
+
+- The WSL VM rebooted twice during the reproduction ("WSL Service terminated" in the
+  System log): the laptop (14 GB) had 0.5 GB free because two hand-made Hyper-V VMs
+  (4 GB each, Secure Boot template *Microsoft Windows*, stuck at "The signed image's hash
+  is not allowed (DB)") were still running. They were turned off and their template set
+  to *Microsoft UEFI Certificate Authority*.
+- C: was full (510 MB free). Hibernation was turned off (6 GB; also disables Fast
+  Startup, which a dual-boot install needs) and stale WSL swap files, old diagnostics
+  and package caches removed (about 5.5 GB). 48 GB free afterwards.

@@ -65,17 +65,21 @@ device). Secure Boot can stay enabled.
 **Write the image raw.** The ISO is a hybrid image: copied byte for byte it brings its
 own partition table (an EFI System Partition with shim and GRUB, the ISO9660 filesystem
 on the whole device). Tools that *extract* the ISO onto a filesystem produce a stick this
-boot chain was never built for. Rufus in particular reports "ISOHybrid image detected"
+boot chain cannot use **with Secure Boot on**. Rufus reports "ISOHybrid image detected"
 and defaults to **ISO Image mode**; because `live/filesystem.squashfs` is larger than
-4 GB it then formats the stick NTFS and boots it through its own UEFI:NTFS loader, which
-ended at a bare `grub>` prompt on the MSI laptop (Rufus 4.13, 2026-10-24). Pick
-**DD Image mode** in that dialog, or use `tools\write-usb.ps1`, or balenaEtcher (always
-raw). The raw image boots to the menu as a USB disk under OVMF Secure Boot and under
-SeaBIOS (`tests/run-qemu-usb.sh`).
+4 GB it then formats the stick NTFS. Debian's signed GRUB refuses to read NTFS while
+Secure Boot lockdown is active ("unknown filesystem" for the partition it was started
+from), so it cannot find its menu and stops at a bare `grub>` prompt; the identical stick
+boots with Secure Boot disabled. Both facts were reproduced in QEMU on 2026-10-25
+(`docs/build-notes.md`). Pick **DD Image mode** in Rufus, or use `tools\write-usb.ps1`
+(run it from an elevated PowerShell; it verifies the write), or balenaEtcher (always raw).
+The raw image boots to the menu as a USB disk under OVMF Secure Boot and under SeaBIOS
+(`tests/run-qemu-usb.sh`).
 
-If the firmware starts GRUB but shows only a `grub>` prompt, first try
-`search --file --set=root /.disk/info` and then `configfile ($root)/boot/grub/grub.cfg`;
-when `search` finds nothing the stick does not hold the raw image: rewrite it.
+If the firmware starts GRUB but shows only a `grub>` prompt: `ls` lists the devices;
+`ls (hd0,gpt1)/` answering "unknown filesystem" means an NTFS (extracted) stick, rewrite
+it raw. On a raw stick `search --file --set=root /.disk/info` followed by
+`configfile ($root)/boot/grub/grub.cfg` brings the menu up.
 
 Windows blocks unsigned scripts by default; run them as
 `powershell -ExecutionPolicy Bypass -File .\tools\write-usb.ps1 -List` (same for
