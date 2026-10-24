@@ -6,17 +6,31 @@ built in: Python 3.13 with PyTorch, Transformers, scikit-learn, pandas and
 Jupyter in `/opt/eternity/venv`, llama.cpp, and two bundled Apache-2.0 models
 (Qwen3.5-4B and Qwen3.5-2B, GGUF) that run offline on the CPU.
 
-Phase 1 = the OS itself. Phase 2 adds the Jarvis-style assistant; phase 3 adds
-Windows application compatibility. See `docs/superpowers/specs/` for the design.
+Phase 1 = the OS itself. Phase 2 (on this branch, from build 10) = the Eternity
+interface and the assistant: one presence at the centre of the desktop, a command bar
+(Super+Space) that answers from the on-device model or, if you choose, from Claude or
+ChatGPT with your own key, actions that are always confirmed and can be undone, search
+by meaning over your files, and a security baseline (firewall default-deny, AppArmor,
+unattended security updates). Phase 3 adds Windows application compatibility. Design
+capture: `docs/design/README.md`; direction: `docs/backlog.md`.
 
 ## Live session
 
 - Boot the ISO. GRUB offers **Eternity 08 Live**, a safe-graphics entry and a
   self-test entry.
 - Login screen: user `eternity`, password `eternity`.
-- Desktop launchers: **Eternity Chat** and **Install Eternity 08**.
+- First login: the **first-run wizard** (your name, unlock methods, which assistant
+  answers). The desktop is the **presence**: the mark at the centre with cards for today,
+  the system, Eternity and your recent files; in a live session a card offers
+  **Install Eternity 08**.
+- **Super+Space** opens Ask Eternity (type a question, `> cmd` for a shell command,
+  `/help`), **Super+A** the radial launcher, **Super+M** the monitor; Settings > Eternity
+  (`eternity-settings`) is "How she shows up". `eternity-find` searches files by meaning.
 - Terminal: `eternity-chat` (interactive), `eternity-chat --ask "..."`,
   `eternity-ai status`, `eternity-ai models`, `eternity-ai serve`.
+- Everything the assistant does is confirmed first and logged in
+  `~/.local/state/eternity/actions.log`; API keys live in the keyring; nothing is sent
+  anywhere unless you chose a cloud assistant.
 - Python: `python` is the ML environment (`import torch` just works);
   `jupyter lab` is available.
 

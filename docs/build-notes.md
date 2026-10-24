@@ -371,3 +371,44 @@ run by `tools/dev/chain-build9.sh` after the unattended install.
 - C: was full (510 MB free). Hibernation was turned off (6 GB; also disables Fast
   Startup, which a dual-boot install needs) and stale WSL swap files, old diagnostics
   and package caches removed (about 5.5 GB). 48 GB free afterwards.
+
+## Phase 2 overnight (2026-10-25, 01:30 to morning): the Eternity interface, AI agents, security
+
+Spec: `docs/backlog.md` and the design capture `docs/design/README.md`; plan
+`docs/superpowers/plans/2026-10-25-eternity-08-phase2-ui.md`. Everything below is on branch
+`phase1` and first ships in **build 10**; build 9 (started 01:29) carries only the installer
+fix and is the fallback image for the stick.
+
+What landed (commits 8c4b154 .. 358c579):
+
+- **Branding**: `branding/render.py` renders the design's mark (fading ring + Möbius ribbon
+  with the travelling light) and the three-bar-E Michroma wordmark into icons, wallpapers
+  with the presence rings, greeter, GRUB background, Calamares slides and 48 Plymouth
+  frames; Nocturne palette everywhere (GRUB theme, terminal, fastfetch, Calamares).
+- **Boot**: Plymouth script (hairline, ring assembling from frames, wordmark settling, six
+  boot-log lines) fed by `eternity-bootlog.service` with real facts.
+- **AI core** (`/usr/lib/eternity/py/eternity`): settings + keyring secrets; providers
+  (local llama-server started on demand as `eternity-llama` user unit with `--jinja`, Anthropic
+  Messages API, OpenAI chat completions; streaming, tool calls, first-token/tok/s); action
+  broker (risk classes, consent callback, JSONL audit log, undo, sudo refused); agent loop
+  with the OS-knowledge system prompt.
+- **Windows** (GTK 3, Python): `eternity-firstrun` (autostart once), `eternity-ask`
+  (Super+Space), `eternity-shell` (the presence as the desktop; xfdesktop icons off),
+  `eternity-launcher` (Super+A), `eternity-find` (search by meaning, bge-small embeddings via
+  `llama-server --embedding` on 127.0.0.1:8081 or a hashed fallback), `eternity-monitor`
+  (Super+M), `eternity-settings`.
+- **Security**: nftables default-deny inbound, AppArmor, unattended security upgrades,
+  sysctl hardening, loopback-only AI servers, no daemons; `check_security` in the self-test.
+- **Packages added**: python3-gi (+cairo, GTK/GdkPixbuf/Pango/Notify typelibs),
+  python3-secretstorage, gnome-keyring, libpam-gnome-keyring, libsecret-tools, brightnessctl,
+  nftables, apparmor(-utils/-profiles/-profiles-extra), unattended-upgrades; model
+  `bge-small-en-v1.5-f16.gguf` (67 MB, MIT) as role `embed`.
+- **Tests**: `tests/host/` (36 unit tests with fake SSE servers and scripted providers,
+  `test_branding.sh`, `test_ui_smoke.sh` under Xvfb rendering every window); smoke checks
+  extended (`check_boot_theme`, `check_installer`, `check_security`); the visual and install
+  runners capture and close the first-run wizard; `tests/run-qemu-install.sh boot-fallback`.
+
+Build 10 must show: themed GRUB, the new splash, the greeter on the new wallpaper, the
+first-run wizard after login, the presence shell with its cards, the command bar, and
+`SMOKE: PASS` including `check_security` and `check_boot_theme`. Results are appended below
+when the runs finish.
