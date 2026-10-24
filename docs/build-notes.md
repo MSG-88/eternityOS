@@ -245,3 +245,28 @@ which 49 MB is libLLVM for the software-GL compositor under QEMU; hardware GL on
 laptop). Within the 700 MB idle budget of the spec even with the terminal and fastfetch
 open. Screenshots: `docs/screenshots/build8-*.png`.
 BIOS run PASS as well: **build 8 passes the whole suite** (`tests/out/build8/build8-run.log`).
+
+## Install test on build 8 (QEMU, OVMF Secure Boot, 40 GB virtio disk, TCG)
+
+`tests/run-qemu-install.sh`: live boot, greeter login, `eternity-install` launched
+Calamares (no polkit prompt for the sudo-group live user), pages driven by mouse clicks:
+Welcome, Location, Keyboard, Partitions (Erase disk: 300 MiB EFI, 33.5 GiB ext4, 6.2 GiB
+swap), Users (Muthu / muthu / eternity-vm; `eternity08` rejected by the libpwquality
+dictionary rule, `Genesis08-vm` used), Summary, Install. All 39 jobs ran; "All done" after
+52 minutes (unpackfs 46 min under emulation, bootloader 16 s, package removal 7 min,
+initramfs 3.5 min). Screenshots `docs/screenshots/build8-installer-*.png`.
+
+Booting the installed disk: themed GRUB with "Eternity 08 GNU/Linux" and a firmware
+entry, greeter with only the new user, login, desktop with the Eternity Chat launcher,
+`/etc/os-release` Eternity 08 0.1.0, no live user, hostname eternity-vm, Secure Boot
+enabled, 636 MB used, 1213 packages (live-* and Calamares removed). Screenshots
+`docs/screenshots/build8-installed-*.png`.
+
+Defects found and fixed for build 9 (commit 005e31f):
+- `post-install.sh` never ran: Calamares did not load `shellprocess@eternity.conf` for
+  the implicit instance, so `eternity-smoke` stayed enabled, the installer launcher file
+  remained and the greeter kept the live-credentials image. The instance is now declared
+  under `instances:`; independently, the greeter conf in the image carries the plain
+  wallpaper and only live sessions switch to the hinted image (live-config component).
+- `hwclock` missing in the target (`util-linux-extra` added).
+- `GRUB_DISABLE_OS_PROBER=false` so an installed system next to Windows lists it.
