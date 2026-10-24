@@ -68,6 +68,14 @@ check_desktop() {
     [ -x /usr/lib/eternity/set-wallpaper.sh ] || { echo "set-wallpaper.sh missing or not executable"; return 1; }
     [ -s /usr/share/icons/hicolor/256x256/apps/eternity.png ] || { echo "hicolor eternity icon missing"; return 1; }
     [ -s /usr/share/pixmaps/eternity.png ] || { echo "pixmaps eternity.png missing"; return 1; }
+    # Icon caches must exist and be newer than their theme dir, or every GTK process
+    # indexes the 43 000 Papirus icons in memory at startup (1.3 GB per session in build 7).
+    local t
+    for t in Papirus-Dark Papirus hicolor Adwaita; do
+        [ -f "/usr/share/icons/$t/icon-theme.cache" ] || { echo "icon-theme.cache missing for $t"; return 1; }
+        [ "$(stat -c %Y "/usr/share/icons/$t/icon-theme.cache")" -ge "$(stat -c %Y "/usr/share/icons/$t")" ] \
+            || { echo "icon-theme.cache stale for $t"; return 1; }
+    done
 }
 
 check_boot_theme() {

@@ -1,0 +1,18 @@
+#!/bin/sh
+# Final cleanup before the filesystem is compressed. Numbered 9900 so it runs after
+# live-build's own 9000-remove-gnome-icon-cache hook, which deletes every
+# icon-theme.cache "to save space": without the caches every GTK process indexed the
+# 43 000 Papirus icons in memory at startup (about 80 MB each, 1.3 GB per XFCE session).
+set -e
+rm -rf /var/cache/eternity-wheels
+rm -rf /usr/src/llama.cpp
+apt-get clean
+rm -rf /root/.cache /tmp/* /var/tmp/* 2>/dev/null || true
+rm -f /var/lib/apt/lists/*_Packages /var/lib/apt/lists/*_Sources 2>/dev/null || true
+fc-cache -f >/dev/null 2>&1 || true
+chmod 755 /usr/local/bin/eternity-chat /usr/local/bin/eternity-ai 2>/dev/null || true
+# Rebuild the icon caches last (after every hook that may have added icons).
+for d in /usr/share/icons/*/; do
+    [ -f "$d/index.theme" ] || continue
+    gtk-update-icon-cache -f -t -q "$d" || echo "warning: icon cache failed for $d"
+done
