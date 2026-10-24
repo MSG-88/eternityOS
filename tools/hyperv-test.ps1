@@ -13,7 +13,7 @@
 #                     key -Key Enter|Tab|Down|CtrlAltT | stop | boot-disk | destroy
 param(
   [string]$Iso,
-  [ValidateSet('live','')][string]$Scenario = '',
+  [ValidateSet('live','phase2','')][string]$Scenario = '',
   [ValidateSet('create','start','shot','type','key','stop','boot-disk','destroy','')][string]$Action = '',
   [string]$Name = 'shot',
   [string]$Text = '',
@@ -43,6 +43,9 @@ function PressKey([string]$k) {
   $codes = @{ Enter=0x0D; Tab=0x09; Down=0x28; Up=0x26; Esc=0x1B; Space=0x20; Left=0x25; Right=0x27; F10=0x79 }
   switch ($k) {
     'CtrlAltT' { $kb.PressKey(0x11) | Out-Null; $kb.PressKey(0x12) | Out-Null; $kb.TypeKey(0x54) | Out-Null; $kb.ReleaseKey(0x12) | Out-Null; $kb.ReleaseKey(0x11) | Out-Null }
+    'AltF4'      { $kb.PressKey(0x12) | Out-Null; $kb.TypeKey(0x73) | Out-Null; $kb.ReleaseKey(0x12) | Out-Null }
+    'SuperSpace' { $kb.PressKey(0x5B) | Out-Null; $kb.TypeKey(0x20) | Out-Null; $kb.ReleaseKey(0x5B) | Out-Null }
+    'SuperA'     { $kb.PressKey(0x5B) | Out-Null; $kb.TypeKey(0x41) | Out-Null; $kb.ReleaseKey(0x5B) | Out-Null }
     default { if (-not $codes.ContainsKey($k)) { throw "unknown key $k" }; $kb.TypeKey($codes[$k]) | Out-Null }
   }
   Start-Sleep -Milliseconds 300
@@ -86,6 +89,30 @@ switch ($Action) {
   'stop'      { Stop-VM -Name $VMName -TurnOff -Force; Write-Host 'stopped'; return }
   'boot-disk' { BootDisk; return }
   'destroy'   { Destroy; return }
+}
+
+if ($Scenario -eq 'phase2') {
+  # Build 10 and later: GRUB, splash, greeter, first-run wizard, the presence, Ask Eternity,
+  # the launcher, the terminal status. Native speed, so the waits are short.
+  Create $Iso
+  Start-VM -Name $VMName
+  Start-Sleep -Seconds 10; Shot 'p2-grub'
+  PressKey 'Enter'
+  Start-Sleep -Seconds 6;  Shot 'p2-splash'
+  Start-Sleep -Seconds 4;  Shot 'p2-splash2'
+  Start-Sleep -Seconds 35; Shot 'p2-login'
+  TypeText 'eternity'; PressKey 'Enter'
+  Start-Sleep -Seconds 30; Shot 'p2-firstrun'
+  PressKey 'AltF4'; Start-Sleep -Seconds 4; Shot 'p2-home'
+  PressKey 'SuperSpace'; Start-Sleep -Seconds 5; Shot 'p2-ask'
+  TypeText 'What is this computer and how much memory does it have?'; PressKey 'Enter'
+  Start-Sleep -Seconds 90; Shot 'p2-ask-answer'
+  PressKey 'Esc'; Start-Sleep -Seconds 2
+  PressKey 'SuperA'; Start-Sleep -Seconds 5; Shot 'p2-launcher'; PressKey 'Esc'; Start-Sleep -Seconds 2
+  PressKey 'CtrlAltT'; Start-Sleep -Seconds 8
+  TypeText 'eternity-ai status; systemctl is-active nftables apparmor; sudo nft list chain inet filter input | head -5'; PressKey 'Enter'
+  Start-Sleep -Seconds 12; Shot 'p2-terminal'
+  Write-Host 'phase2 scenario done; VM left running (use -Action stop / destroy)'
 }
 
 if ($Scenario -eq 'live') {
