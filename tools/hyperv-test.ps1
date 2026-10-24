@@ -95,8 +95,7 @@ if ($Scenario -eq 'live') {
   Start-Sleep -Seconds 8;  Shot 'splash'
   Start-Sleep -Seconds 40; Shot 'login'
   $tLogin = ((Get-Date) - $t0).TotalSeconds
-  TypeText 'eternity'; PressKey 'Enter'; Start-Sleep -Seconds 2
-  TypeText 'eternity'; PressKey 'Enter'
+  TypeText 'eternity'; PressKey 'Enter'   # the greeter preselects the live user; this is the password
   Start-Sleep -Seconds 30; Shot 'desktop'
   PressKey 'CtrlAltT'; Start-Sleep -Seconds 8
   TypeText 'free -m; eternity-ai status'; PressKey 'Enter'; Start-Sleep -Seconds 12; Shot 'status'

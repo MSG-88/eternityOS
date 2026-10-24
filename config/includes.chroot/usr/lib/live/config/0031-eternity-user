@@ -1,0 +1,49 @@
+#!/bin/sh
+# live-config component: Eternity 08 live user credentials.
+#
+# live-config 11 hard-codes the live user's password ("live") and takes the full
+# name from user-fullname= (default "Debian Live user", which the greeter shows).
+# The greeter hint and the README promise user eternity / password eternity, so set
+# both right after 0030-user-setup has created the account.
+
+. /usr/lib/live/config.sh
+
+Cmdline ()
+{
+	for _PARAMETER in ${LIVE_CONFIG_CMDLINE}
+	do
+		case "${_PARAMETER}" in
+			live-config.username=*|username=*)
+				LIVE_USERNAME="${_PARAMETER#*username=}"
+				;;
+		esac
+	done
+}
+
+Init ()
+{
+	if component_was_executed "eternity-user"
+	then
+		exit 0
+	fi
+
+	echo -n " eternity-user"
+}
+
+Config ()
+{
+	LIVE_USERNAME="${LIVE_USERNAME:-user}"
+
+	if getent passwd "${LIVE_USERNAME}" > /dev/null
+	then
+		echo "${LIVE_USERNAME}:eternity" | chpasswd
+		usermod -c "Eternity 08 Live" "${LIVE_USERNAME}"
+	fi
+
+	# Creating state file
+	touch /var/lib/live/config/eternity-user
+}
+
+Cmdline
+Init
+Config

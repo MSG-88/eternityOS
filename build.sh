@@ -54,6 +54,7 @@ find config/includes.chroot config/package-lists config/archives config/bootload
      -type f -exec chmod 644 {} + 2>/dev/null || true
 chmod 755 build.sh auto/* config/hooks/*/* tests/*.sh 2>/dev/null || true
 find config/includes.chroot/usr/lib/eternity config/includes.chroot/usr/local/bin \
+     config/includes.chroot/usr/lib/live/config \
      -type f \( -name '*.sh' -o ! -name '*.*' \) -exec chmod 755 {} + 2>/dev/null || true
 
 log "Staging in-image test files"
