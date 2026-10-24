@@ -7,7 +7,8 @@ After=network.target
 Type=simple
 User=eternity-ai
 Group=eternity-ai
-ExecStart=/usr/local/bin/llama-server -m /opt/eternity/models/default.gguf --host 127.0.0.1 --port 8080 -c 4096 -t %E{ETERNITY_THREADS}
+# ${VAR} is systemd's environment expansion (%E{...} would be the /etc path specifier).
+ExecStart=/usr/local/bin/llama-server -m /opt/eternity/models/default.gguf --host 127.0.0.1 --port 8080 -c 4096 -t ${ETERNITY_THREADS}
 Environment=ETERNITY_THREADS=4
 Restart=on-failure
 RestartSec=5

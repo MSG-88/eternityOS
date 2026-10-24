@@ -6,6 +6,8 @@
 #       eternity-ai status and a one-shot eternity-chat, screenshotting each step into
 #       docs\screenshots\hyperv-*.png
 #
+#   There is no scripted -Install scenario: the Calamares run is driven step by step with
+#   the single actions below (screenshot, type, key), then -Action boot-disk and start.
 #   Single actions (for driving the installer by hand):
 #   .\hyperv-test.ps1 -Action create -Iso <iso> | start | shot -Name <file> | type -Text "..." |
 #                     key -Key Enter|Tab|Down|CtrlAltT | stop | boot-disk | destroy

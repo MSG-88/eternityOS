@@ -32,6 +32,7 @@ fonts-noto-color-emoji
 dbus-x11
 polkitd
 pkexec
+mate-polkit
 xdg-utils
 gvfs
 gvfs-backends

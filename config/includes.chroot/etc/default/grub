@@ -1,0 +1,9 @@
+# Debian's stock /etc/default/grub. The image ships grub-efi-amd64-bin / grub-pc-bin only
+# (no grub-efi-amd64 / grub-pc package), so this file would otherwise not exist; Calamares'
+# grubcfg module edits it and update-grub reads it. Eternity 08 settings live in
+# /etc/default/grub.d/eternity.cfg, which overrides the values below.
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=5
+GRUB_DISTRIBUTOR=`( . /etc/os-release && echo ${NAME} ) 2>/dev/null || echo Debian`
+GRUB_CMDLINE_LINUX_DEFAULT="quiet"
+GRUB_CMDLINE_LINUX=""

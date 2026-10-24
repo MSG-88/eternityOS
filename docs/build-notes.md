@@ -138,3 +138,49 @@ Screenshots: `docs/screenshots/build5-grub-uefi-secureboot.png`, `build5-grub-bi
 Desktop and terminal screenshots, idle memory under the desktop, and tokens/s in a VM
 are still open until build 6 boots with the corrected password (the build 4 KVM smoke
 run measured 353 MB used at multi-user without a desktop session).
+
+### Final review of the branch (2026-10-24) and fix pass
+
+A fresh reviewer read the whole branch and the build 5 chroot. Findings fixed, each with a
+check that failed first against the build 5 files and passed with the fix
+(`tests/out/fixpass-red.log`, `fixpass-green.log`):
+
+- **Critical: the Calamares install would abort after wiping the disk.** The exec
+  sequence inherited Debian's `bootloader-config` job, which runs `apt-get install
+  grub-efi` (offline, fails) and then `update-grub` before `grub-install` has created
+  `/boot/grub`; this image ships only `grub-efi-amd64-bin`/`grub-pc-bin`, so `/boot/grub`
+  and `/etc/default/grub` did not exist and the job failed. `bootloader-config`,
+  `sources-media` and `sources-media-unmount` (they assume a package pool on the medium)
+  are removed; Calamares' own `bootloader` module does `grub-install` + `grub-mkconfig`.
+  A stock `/etc/default/grub` is shipped, `mate-polkit` (the agent `pkexec calamares`
+  needs) is listed explicitly, and `check_installer` asserts all of it plus
+  `/etc/kernel/postinst.d/zz-update-grub` (grub2-common) so kernel updates refresh GRUB.
+- **Important: `llama-server.service` could never start.** `-t %E{ETERNITY_THREADS}` used
+  systemd's `/etc` specifier, not environment expansion; fixed to `${ETERNITY_THREADS}`.
+  `check_llama` now runs the unit's ExecStart (small model, unit Environment= applied)
+  and waits for `/health`; it failed on the old unit with llama-server's usage text.
+- **Important:** `build.sh --test` lost the suite's logs when the suite failed (`set -e`);
+  rsync's `--delete` could trip over `/proc` left mounted in an interrupted chroot
+  (live-build output dirs are now excluded from the mirror); `auto/build` masked a failed
+  `lb build` behind `tee` (pipefail); build backends pinned (scikit-build-core 1.1.1,
+  setuptools 84.2.1, wheel 0.48.0); scripts carry their executable bit in git.
+- **Minor fixed:** `eternity-install` refuses to run outside the live medium (it parks
+  `/etc/fstab`); the Eternity Chat launcher keeps its terminal open on error
+  (`chat-launcher.sh`); PowerShell helper docs corrected.
+- **Default model exercised:** `llama-bench` natively in the build 5 chroot, 4 threads on
+  the Ryzen 7 3750H: Qwen3.5-4B Q4_K_M prompt 13.5 tok/s, generation 6.4 tok/s;
+  Qwen3.5-2B Q4_K_M prompt 31.7 tok/s, generation 12.8 tok/s. Above the 4 tok/s fallback
+  rule in `docs/models.md`, so the model choice stands. `check_chat` now also asks the
+  default model when MemAvailable allows (8 GB machines) and always prints the bench line.
+
+Deferred (recorded, not fixed): installed systems under Secure Boot still flash the three
+font errors because `grub-mkconfig` loads every `.pf2` in the theme directory (fix:
+font-free theme dir plus a `/etc/grub.d` snippet guarded by `$lockdown`); a QEMU install
+run (`tests/run-qemu-install.sh`) to pin the installed-system path without Hyper-V;
+`--system-site-packages` on the ML venv and `--apt-recommends true` were plan deviations
+without a ruling and are kept deliberately (recommends bring the polkit agent, X input
+drivers and codecs a desktop needs; the venv flag lets system python3 modules such as
+`apt_pkg`/`gi` import).
+
+Verdict as of this commit: not ready to merge until build 6 is built and the smoke, BIOS,
+visual and one real install run pass (see "What was not run").

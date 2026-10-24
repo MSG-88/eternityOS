@@ -33,8 +33,12 @@ log() { printf '\n==> %s\n' "$*"; }
 
 log "Mirroring $REPO -> $BUILD_DIR"
 mkdir -p "$BUILD_DIR"
+# live-build's own output trees are left to `lb clean`: after an interrupted build they may
+# still have /proc and /sys mounted, and rsync's delete would fail on them.
 rsync -a --delete \
     --exclude '.git' --exclude 'cache/' --exclude 'out/' --exclude 'tests/out/' \
+    --exclude '/chroot/' --exclude '/binary/' --exclude '/.build/' --exclude '/local/' \
+    --exclude 'build.log' --exclude 'chroot.*' --exclude 'binary.*' --exclude '*.contents' --exclude '*.files' --exclude '*.packages' \
     --exclude '.superpowers/' --exclude 'build.log' --exclude '.hostvenv/' \
     --exclude 'config/includes.chroot/opt/eternity/models/*.gguf' \
     --exclude 'config/includes.chroot/opt/eternity/models/*.LICENSE' \
@@ -74,7 +78,7 @@ if [ -f ai/requirements.lock ]; then
     .hostvenv/bin/pip download -q --require-hashes -r ai/requirements.lock -d "$WHEELS"
     # build backends for the sdists in the lock (llama-cpp-python needs scikit-build-core);
     # pip's isolated build env resolves them from the same offline cache inside the chroot.
-    .hostvenv/bin/pip download -q 'scikit-build-core>=0.9.2' setuptools wheel -d "$WHEELS"
+    .hostvenv/bin/pip download -q 'scikit-build-core==1.1.1' 'setuptools==84.2.1' 'wheel==0.48.0' -d "$WHEELS"
 fi
 if [ -f ai/llama-cpp.version ]; then
     install -D -m 644 ai/llama-cpp.version config/includes.chroot/usr/lib/eternity/llama-cpp.version
@@ -120,14 +124,14 @@ cp -f build.log "$REPO/out/build.log"
 [ -f "out/$ISO_NAME.sha256" ] && cp -f "out/$ISO_NAME.sha256" "$REPO/out/" || true
 
 if [ "$DO_TEST" = 1 ]; then
+    rc=0   # a failing suite must still get its logs copied back (set -e would skip that)
     if [ -f tests/run-all.sh ]; then
         log "Running the verification suite"
-        bash tests/run-all.sh "out/$ISO_NAME"
+        bash tests/run-all.sh "out/$ISO_NAME" || rc=$?
     else
         log "Running the QEMU smoke test"
-        bash tests/run-qemu-smoke.sh "out/$ISO_NAME"
+        bash tests/run-qemu-smoke.sh "out/$ISO_NAME" || rc=$?
     fi
-    rc=$?
     mkdir -p "$REPO/tests/out"
     cp -af tests/out/. "$REPO/tests/out/" 2>/dev/null || true
     exit $rc

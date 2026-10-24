@@ -1,4 +1,6 @@
 #!/bin/sh
 set -e
+# pipefail so a failed `lb build` is not masked by tee's exit status (dash supports it).
+set -o pipefail
 
 lb build noauto "${@}" 2>&1 | tee build.log

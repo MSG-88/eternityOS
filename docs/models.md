@@ -41,3 +41,10 @@ promptly on a CPU; `eternity-chat --think` turns it on.
 
 Checksums: computed on the downloaded files by `ai/fetch-models.sh` and
 recorded in `ai/models.manifest`; the Hub listing does not expose them.
+
+## Fallback rule evaluated (2026-10-24, build 5 chroot, native)
+
+`llama-bench -p 64 -n 32 -t 4` on the Ryzen 7 3750H: Qwen3.5-4B Q4_K_M generates 6.4
+tok/s (prompt 13.5 tok/s); Qwen3.5-2B Q4_K_M generates 12.8 tok/s (prompt 31.7 tok/s).
+Both load at llama.cpp `b11843`; the 4B result is above the 4 tok/s threshold, so the
+Qwen3.5 pair stays.

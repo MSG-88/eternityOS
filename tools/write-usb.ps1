@@ -4,7 +4,8 @@
 #   .\write-usb.ps1 -DiskNumber 2 -Iso out\eternity-08-0.1.0-amd64.iso -Confirm:$true
 #
 # Safety: only disks with BusType USB are accepted, never the system disk, and the
-# write happens only with -Confirm:$true. Everything on the stick is destroyed.
+# write requires confirmation (ConfirmImpact=High prompts; -Confirm:$true keeps the
+# prompt explicit, -Confirm:$false would skip it). Everything on the stick is destroyed.
 [CmdletBinding(SupportsShouldProcess=$true, ConfirmImpact='High')]
 param(
   [switch]$List,

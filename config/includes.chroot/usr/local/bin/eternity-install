@@ -1,5 +1,11 @@
 #!/bin/sh
 # Launch the Eternity 08 installer (Calamares) from the live session.
+# Only meaningful in the live session: on an installed system this binary survives (the
+# launcher is removed) and parking /etc/fstab there would be dangerous.
+if [ ! -d /run/live/medium ]; then
+    echo "eternity-install: not running from the live medium; nothing to install." >&2
+    exit 1
+fi
 # A stale /etc/fstab left by live-build confuses partitioning; park it while the installer runs.
 if [ -f /etc/fstab ]; then
     sudo mv /etc/fstab /etc/fstab.orig.eternity

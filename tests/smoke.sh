@@ -114,6 +114,15 @@ check_installer() {
     grep -qs '^branding: *eternity' /etc/calamares/settings.conf || { echo "settings.conf does not select eternity branding"; return 1; }
     [ -x /usr/lib/eternity/post-install.sh ] || { echo "post-install.sh missing"; return 1; }
     [ -s /usr/share/applications/eternity-install.desktop ] || { echo "eternity-install.desktop missing"; return 1; }
+    # The install must work offline with the GRUB this image ships (grub-*-bin only).
+    # Debian's bootloader-config helper would apt-get grub-efi and run update-grub before
+    # grub-install created /boot/grub, aborting the install after the disk was wiped.
+    grep -qsE '^\s*-\s*(bootloader-config|sources-media)' /etc/calamares/settings.conf \
+        && { echo "settings.conf still runs Debian's online bootloader-config/sources-media jobs"; return 1; }
+    [ -s /etc/default/grub ] || { echo "/etc/default/grub missing"; return 1; }
+    command -v grub-install >/dev/null && command -v update-grub >/dev/null || { echo "grub-install/update-grub missing"; return 1; }
+    [ -x /etc/kernel/postinst.d/zz-update-grub ] || { echo "kernel postinst hook zz-update-grub missing"; return 1; }
+    dpkg -s mate-polkit >/dev/null 2>&1 || { echo "no polkit agent (mate-polkit) for pkexec calamares"; return 1; }
 }
 
 check_venv() {
@@ -136,6 +145,25 @@ check_llama() {
     command -v llama-server >/dev/null || { echo "llama-server missing"; return 1; }
     [ -f /etc/systemd/system/llama-server.service ] || { echo "llama-server.service missing"; return 1; }
     [ "$(systemctl is-enabled llama-server 2>/dev/null)" = disabled ] || { echo "llama-server should be disabled, is '$(systemctl is-enabled llama-server 2>/dev/null)'"; return 1; }
+    # The shipped unit must actually start llama-server (a bad ExecStart argument would
+    # crash-loop it once enabled). Run its ExecStart line here, with the small model so it
+    # fits a 4 GB machine and with the unit's Environment= expanded the way systemd does,
+    # and wait for the /health endpoint.
+    local exec env_line out pid i ok=1
+    exec=$(sed -n 's/^ExecStart=//p' /etc/systemd/system/llama-server.service | head -1)
+    env_line=$(sed -n 's/^Environment=//p' /etc/systemd/system/llama-server.service | tr '\n' ' ')
+    exec=${exec//default.gguf/small.gguf}
+    out=$(mktemp)
+    ( eval "export $env_line"; eval "exec $exec" ) >"$out" 2>&1 &
+    pid=$!
+    for i in $(seq 1 $((60 * SCALE))); do
+        curl -fs http://127.0.0.1:8080/health >/dev/null 2>&1 && { ok=0; break; }
+        kill -0 $pid 2>/dev/null || break
+        sleep 2
+    done
+    kill $pid 2>/dev/null; wait $pid 2>/dev/null
+    [ $ok = 0 ] || { echo "llama-server did not come up from the unit's ExecStart: $(tail -c 200 "$out" | tr '\n' ' ')"; rm -f "$out"; return 1; }
+    rm -f "$out"
 }
 
 check_models() {
@@ -154,7 +182,20 @@ check_chat() {
     local out
     out=$(timeout $((300 * SCALE)) eternity-chat --small --ask "Reply with the single word PONG." 2>/dev/null)
     echo "$out" | grep -qi pong || { echo "model did not answer PONG: $(echo "$out" | tail -c 120 | tr '\n' ' ')"; return 1; }
-    echo "INFO bench: $(timeout $((300 * SCALE)) llama-bench -m /opt/eternity/models/small.gguf -p 64 -n 32 -o csv 2>/dev/null | tail -n 2 | cut -d, -f 1,3,14- | tr '\n' ' ')" >&2
+    local bench
+    bench=$(timeout $((300 * SCALE)) llama-bench -m /opt/eternity/models/small.gguf -p 64 -n 32 -o csv 2>/dev/null | tail -n 2 | cut -d, -f 7,12,35,36,40 | tr '\n' ' ')
+    echo "INFO bench small (model,threads,n_prompt,n_gen,tok/s): ${bench:-no output}" >&2
+    # Also exercise the default (4B) model when the machine has room for it (8 GB class);
+    # eternity-chat itself would pick the small one below ETERNITY_MIN_MEM_KB.
+    local avail
+    avail=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)
+    if [ "$avail" -ge 5500000 ]; then
+        out=$(timeout $((300 * SCALE)) eternity-chat --default --ask "Reply with the single word PONG." 2>/dev/null)
+        echo "$out" | grep -qi pong || { echo "default model did not answer PONG: $(echo "$out" | tail -c 120 | tr '\n' ' ')"; return 1; }
+        echo "INFO chat: default model answered too" >&2
+    else
+        echo "INFO chat: default model skipped (MemAvailable ${avail}kB below 5500000kB)" >&2
+    fi
 }
 
 run_all() {
