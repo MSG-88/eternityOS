@@ -16,11 +16,10 @@ if (scale < 0.5) scale = 0.5;
 // ---------------------------------------------------------------- the presence (frames)
 FRAMES = 24;
 for (i = 0; i < FRAMES; i++) {
-    n = i;
-    name = "ring-draw-" + (n < 10 ? "0" : "") + n + ".png";
-    draw_frames[i] = Image(name);
-    name = "ring-loop-" + (n < 10 ? "0" : "") + n + ".png";
-    loop_frames[i] = Image(name);
+    if (i < 10) num = "0" + i;
+    else num = "" + i;
+    draw_frames[i] = Image("ring-draw-" + num + ".png");
+    loop_frames[i] = Image("ring-loop-" + num + ".png");
 }
 if (scale != 1) {
     for (i = 0; i < FRAMES; i++) {
@@ -64,9 +63,10 @@ fun log_add(text) {
     log.text[log.count] = text;
     log.count++;
     for (i = 0; i < log.count; i++) {
-        num = (i + 1 < 10 ? "0" : "") + (i + 1);
+        if (i + 1 < 10) num = "0" + (i + 1);
+        else num = "" + (i + 1);
         img = Image.Text(num + "   " + log.text[i], 0.58, 0.61, 0.67, 1, "Sans 11");
-        if (!log.sprite[i]) log.sprite[i] = Sprite();
+        if (log.sprite[i] == NULL) log.sprite[i] = Sprite();
         log.sprite[i].SetImage(img);
         log.sprite[i].SetPosition(log.x, log.y + i * log.line_h, 6);
         log.sprite[i].SetOpacity(1);
@@ -108,8 +108,7 @@ Plymouth.SetRefreshFunction(refresh_callback);
 
 // Boot progress is implied by the log; the systemd messages drive the lines.
 fun message_callback(text) {
-    if (text == "") return;
-    log_add(text);
+    if (text != "") log_add(text);
 }
 Plymouth.SetDisplayMessageFunction(message_callback);
 
