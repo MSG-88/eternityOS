@@ -16,6 +16,10 @@ EXPECT_DIR=/usr/lib/eternity/expect
 VIRT=$(systemd-detect-virt 2>/dev/null || echo none)
 SCALE=1; [ "$VIRT" = qemu ] && SCALE=${ETERNITY_SMOKE_SCALE:-10}
 
+# Idle memory is sampled here, right after boot, before any check loads a model or
+# imports torch; check_memory grades this figure (the spec's budget is idle memory).
+USED_AT_BOOT_KB=$(free -k | awk '/^Mem:/ {print $3}')
+
 echo "ETERNITY SMOKE START"
 echo "INFO kernel: $(uname -r)"
 echo "INFO virt: $VIRT timeout-scale=$SCALE"
@@ -103,9 +107,11 @@ check_login() {
 check_memory() {
     # Proxy for the idle figure (no desktop session here): `used` at multi-user must stay under 450 MB.
     grep -q 'boot=live' /proc/cmdline || { echo "not a live boot"; return 2; }
-    local used
-    used=$(free -k | awk '/^Mem:/ {print $3}')
-    [ "$used" -lt 450000 ] || { echo "used ${used}kB at multi-user, limit 450000kB"; return 1; }
+    # Sampled at script start (see USED_AT_BOOT_KB): the checks that run before this one
+    # (alphabetical order) load models and torch, which inflated a sample taken here to
+    # 488 MB in build 6 while boot-time use was 299 MB.
+    [ "$USED_AT_BOOT_KB" -lt 450000 ] || { echo "used ${USED_AT_BOOT_KB}kB at multi-user (sampled at boot), limit 450000kB"; return 1; }
+    echo "INFO idle: ${USED_AT_BOOT_KB}kB used at multi-user" >&2
 }
 
 check_installer() {
@@ -183,7 +189,8 @@ check_chat() {
     out=$(timeout $((300 * SCALE)) eternity-chat --small --ask "Reply with the single word PONG." 2>/dev/null)
     echo "$out" | grep -qi pong || { echo "model did not answer PONG: $(echo "$out" | tail -c 120 | tr '\n' ' ')"; return 1; }
     local bench
-    bench=$(timeout $((300 * SCALE)) llama-bench -m /opt/eternity/models/small.gguf -p 64 -n 32 -o csv 2>/dev/null | tail -n 2 | cut -d, -f 7,12,35,36,40 | tr '\n' ' ')
+    # CSV columns of llama-bench b11843: 7 model_type, 12 n_threads, 35 n_prompt, 36 n_gen, 41 avg_ts
+    bench=$(timeout $((300 * SCALE)) llama-bench -m /opt/eternity/models/small.gguf -p 64 -n 32 -o csv 2>/dev/null | tail -n 2 | cut -d, -f 7,12,35,36,41 | tr '\n' ' ')
     echo "INFO bench small (model,threads,n_prompt,n_gen,tok/s): ${bench:-no output}" >&2
     # Also exercise the default (4B) model when the machine has room for it (8 GB class);
     # eternity-chat itself would pick the small one below ETERNITY_MIN_MEM_KB.
