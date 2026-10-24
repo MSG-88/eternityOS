@@ -1,0 +1,10 @@
+#!/bin/sh
+# Final cleanup before the filesystem is compressed.
+set -e
+rm -rf /var/cache/eternity-wheels
+rm -rf /usr/src/llama.cpp
+apt-get clean
+rm -rf /root/.cache /tmp/* /var/tmp/* 2>/dev/null || true
+rm -f /var/lib/apt/lists/*_Packages /var/lib/apt/lists/*_Sources 2>/dev/null || true
+fc-cache -f >/dev/null 2>&1 || true
+chmod 755 /usr/local/bin/eternity-chat /usr/local/bin/eternity-ai 2>/dev/null || true

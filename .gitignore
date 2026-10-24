@@ -13,17 +13,19 @@ config/includes.chroot/usr/lib/eternity/expect/
 config/includes.chroot/usr/lib/eternity/smoke.sh
 config/includes.chroot/usr/lib/eternity/requirements.lock
 
-# build outputs
+# build outputs (live-build trees are anchored to the repo root: usr/local etc. inside includes.chroot must stay tracked)
 *.iso
 *.log
 *.vhdx
-cache/
-build/
-.build/
-chroot/
-binary/
-local/
-out/
+/cache/
+/build/
+/.build/
+/chroot/
+/binary/
+/local/
+/out/
 tests/out/
 .superpowers/
 __pycache__/
+config/includes.chroot/var/cache/
+.hostvenv/

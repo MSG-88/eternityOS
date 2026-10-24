@@ -11,8 +11,14 @@
 
 EXPECT_DIR=/usr/lib/eternity/expect
 
+# Under software-emulated QEMU (TCG, no KVM on the test host) everything runs an order of
+# magnitude slower; the model timeouts are stretched by SCALE so the checks stay meaningful.
+VIRT=$(systemd-detect-virt 2>/dev/null || echo none)
+SCALE=1; [ "$VIRT" = qemu ] && SCALE=${ETERNITY_SMOKE_SCALE:-10}
+
 echo "ETERNITY SMOKE START"
 echo "INFO kernel: $(uname -r)"
+echo "INFO virt: $VIRT timeout-scale=$SCALE"
 echo "INFO cmdline: $(cat /proc/cmdline)"
 echo "INFO memory: $(free -k | awk '/^Mem:/ {print "total="$2"kB used="$3"kB available="$7"kB"}')"
 
@@ -84,7 +90,22 @@ check_login() {
     fi
     if grep -q 'boot=live' /proc/cmdline; then
         getent passwd eternity >/dev/null || { echo "live user eternity missing"; return 1; }
+        # The greeter hint promises password "eternity"; live-config's default is "live".
+        local hash
+        hash=$(getent shadow eternity | cut -d: -f2)
+        perl -e 'exit(crypt($ARGV[0], $ARGV[1]) eq $ARGV[1] ? 0 : 1)' eternity "$hash" \
+            || { echo "live password is not 'eternity'"; return 1; }
+        getent passwd eternity | cut -d: -f5 | grep -q 'Eternity' \
+            || { echo "live user full name is '$(getent passwd eternity | cut -d: -f5)'"; return 1; }
     fi
+}
+
+check_memory() {
+    # Proxy for the idle figure (no desktop session here): `used` at multi-user must stay under 450 MB.
+    grep -q 'boot=live' /proc/cmdline || { echo "not a live boot"; return 2; }
+    local used
+    used=$(free -k | awk '/^Mem:/ {print $3}')
+    [ "$used" -lt 450000 ] || { echo "used ${used}kB at multi-user, limit 450000kB"; return 1; }
 }
 
 check_installer() {
@@ -95,13 +116,54 @@ check_installer() {
     [ -s /usr/share/applications/eternity-install.desktop ] || { echo "eternity-install.desktop missing"; return 1; }
 }
 
+check_venv() {
+    local py=/opt/eternity/venv/bin/python
+    [ -x "$py" ] || { echo "venv python missing"; return 1; }
+    "$py" - <<'PY' 2>&1 | tail -n 3 || return 1
+import torch, transformers, sklearn, pandas, numpy, scipy, matplotlib, sentence_transformers, llama_cpp
+assert not torch.cuda.is_available()
+assert torch.tensor([1.0, 2.0]).sum().item() == 3.0
+print("torch", torch.__version__, "transformers", transformers.__version__)
+PY
+    [ "${PIPESTATUS[0]}" = 0 ] || { echo "venv import test failed"; return 1; }
+    [ -x /opt/eternity/venv/bin/jupyter ] || { echo "jupyter missing from venv"; return 1; }
+    grep -qs '/opt/eternity/venv/bin' /etc/profile.d/eternity-venv.sh || { echo "profile.d PATH entry missing"; return 1; }
+}
+
+check_llama() {
+    command -v llama-cli >/dev/null || { echo "llama-cli missing"; return 1; }
+    llama-cli --version >/dev/null 2>&1 || { echo "llama-cli --version failed"; return 1; }
+    command -v llama-server >/dev/null || { echo "llama-server missing"; return 1; }
+    [ -f /etc/systemd/system/llama-server.service ] || { echo "llama-server.service missing"; return 1; }
+    [ "$(systemctl is-enabled llama-server 2>/dev/null)" = disabled ] || { echo "llama-server should be disabled, is '$(systemctl is-enabled llama-server 2>/dev/null)'"; return 1; }
+}
+
+check_models() {
+    local d=/opt/eternity/models
+    [ -f "$d/default.gguf" ] && [ -f "$d/small.gguf" ] || { echo "default.gguf/small.gguf missing"; return 1; }
+    [ -s "$d/SHA256SUMS" ] || { echo "SHA256SUMS missing"; return 1; }
+    (cd "$d" && sha256sum --quiet -c SHA256SUMS) || { echo "checksum mismatch"; return 1; }
+    [ -s "$d/models.json" ] || { echo "models.json missing"; return 1; }
+    ls "$d"/*.LICENSE >/dev/null 2>&1 || { echo "licence files missing"; return 1; }
+}
+
+check_chat() {
+    command -v eternity-chat >/dev/null || { echo "eternity-chat missing"; return 1; }
+    command -v eternity-ai >/dev/null || { echo "eternity-ai missing"; return 1; }
+    eternity-ai status 2>&1 | grep -q 'Eternity 08' || { echo "eternity-ai status lacks Eternity 08"; return 1; }
+    local out
+    out=$(timeout $((300 * SCALE)) eternity-chat --small --ask "Reply with the single word PONG." 2>/dev/null)
+    echo "$out" | grep -qi pong || { echo "model did not answer PONG: $(echo "$out" | tail -c 120 | tr '\n' ' ')"; return 1; }
+    echo "INFO bench: $(timeout $((300 * SCALE)) llama-bench -m /opt/eternity/models/small.gguf -p 64 -n 32 -o csv 2>/dev/null | tail -n 2 | cut -d, -f 1,3,14- | tr '\n' ' ')" >&2
+}
+
 run_all() {
     local failed=0 name fn reason rc
     for fn in $(declare -F | awk '{print $3}' | grep '^check_' | sort); do
         name=${fn#check_}
         reason=$($fn 2>&1); rc=$?
         case $rc in
-            0) echo "CHECK $name: PASS" ;;
+            0) echo "CHECK $name: PASS"; [ -n "$reason" ] && echo "$reason" | grep '^INFO' ;;
             2) echo "CHECK $name: SKIP $reason" ;;
             *) echo "CHECK $name: FAIL $reason"; failed=1 ;;
         esac

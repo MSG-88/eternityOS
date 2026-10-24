@@ -8,7 +8,9 @@ ISO=${1:-}
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=$HERE/out
 MEM=${ETERNITY_QEMU_MEM:-4096}
-TIMEOUT=${ETERNITY_QEMU_TIMEOUT:-900}
+. "$HERE/qemu-env.sh"                    # QEMU_ACCEL, TSCALE (10x without KVM)
+TIMEOUT=${ETERNITY_QEMU_TIMEOUT:-$(( 900 * TSCALE ))}
+APPEND_EXTRA=${ETERNITY_QEMU_APPEND:-}   # extra kernel arguments, e.g. systemd.mask=...
 
 [ -n "$ISO" ] && [ -f "$ISO" ] || { echo "ISO not found: '$ISO'" >&2; exit 2; }
 mkdir -p "$OUT"
@@ -22,12 +24,15 @@ initrd=$(echo "$listing" | grep -o "initrd.img[^' ]*" | sort | head -1)
 xorriso -osirrox on -indev "$ISO" -extract "/live/$kernel" "$OUT/vmlinuz" -extract "/live/$initrd" "$OUT/initrd.img" >/dev/null 2>&1 \
     || { echo "xorriso extract failed" >&2; exit 2; }
 
+# The command line mirrors the ISO's "Self-test" GRUB entry (auto/config bootappend + the
+# self-test additions) so live-config creates the same user/hostname as a real boot.
+echo "INFO accel: $ACCEL_NAME timeout=${TIMEOUT}s"
 timeout --foreground "$TIMEOUT" qemu-system-x86_64 \
-    -enable-kvm -cpu host -m "$MEM" -smp 4 \
+    "${QEMU_ACCEL[@]}" -m "$MEM" -smp 4 \
     -nic none -display none -no-reboot \
     -cdrom "$ISO" \
     -kernel "$OUT/vmlinuz" -initrd "$OUT/initrd.img" \
-    -append "boot=live components noeject eternity.test console=ttyS0,115200 quiet" \
+    -append "boot=live components quiet splash locales=en_US.UTF-8 username=eternity hostname=eternity live-config.noautologin noeject eternity.test console=ttyS0,115200 $APPEND_EXTRA" \
     -serial "file:$OUT/serial.log" >"$OUT/qemu-smoke.log" 2>&1
 qrc=$?
 
