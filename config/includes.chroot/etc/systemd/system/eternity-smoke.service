@@ -3,6 +3,9 @@ Description=Eternity 08 self-test (runs only with eternity.test on the kernel co
 ConditionKernelCommandLine=eternity.test
 After=multi-user.target
 Wants=multi-user.target
+# agetty on the serial console would vhangup() ttyS0 and silence our output mid-run.
+Conflicts=serial-getty@ttyS0.service
+After=serial-getty@ttyS0.service
 
 [Service]
 Type=oneshot
@@ -10,7 +13,9 @@ ExecStart=/usr/lib/eternity/smoke.sh
 StandardOutput=tty
 StandardError=tty
 TTYPath=/dev/ttyS0
-TimeoutStartSec=900
+# No unit-level timeout: the QEMU runner enforces the deadline (900 s under KVM, ten
+# times that under TCG software emulation, where a 900 s limit here killed the run).
+TimeoutStartSec=infinity
 
 [Install]
 WantedBy=multi-user.target
