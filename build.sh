@@ -121,8 +121,12 @@ log "Copying results back to $REPO/out"
 mkdir -p "$REPO/out"
 # Direct I/O keeps the 6 GB copy out of the WSL page cache (a cached copy grew the WSL
 # instance to its cap and the host ran short of memory); fall back to cp if drvfs refuses.
-dd if="out/$ISO_NAME" of="$REPO/out/$ISO_NAME" bs=16M iflag=direct oflag=direct status=none 2>/dev/null \
-    || cp -f "out/$ISO_NAME" "$REPO/out/"
+# A Windows process (Hyper-V with the ISO attached, a verifier) may hold the old copy open:
+# never let a failed copy fail the build (the ISO stays in out/ inside WSL).
+if ! { rm -f "$REPO/out/$ISO_NAME" 2>/dev/null; dd if="out/$ISO_NAME" of="$REPO/out/$ISO_NAME" bs=16M iflag=direct oflag=direct status=none 2>/dev/null        || cp -f "out/$ISO_NAME" "$REPO/out/$ISO_NAME"; }; then
+    log "WARN: could not replace $REPO/out/$ISO_NAME (held open on Windows?); writing $ISO_NAME.new"
+    cp -f "out/$ISO_NAME" "$REPO/out/$ISO_NAME.new" || log "WARN: copy to the repo failed; the ISO stays in $(pwd)/out"
+fi
 cp -f build.log "$REPO/out/build.log"
 [ -f "out/$ISO_NAME.sha256" ] && cp -f "out/$ISO_NAME.sha256" "$REPO/out/" || true
 
