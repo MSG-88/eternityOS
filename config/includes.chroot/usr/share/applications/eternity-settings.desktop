@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Eternity settings
+Comment=How Eternity shows up: assistant, verbosity, unlock methods, privacy
+Exec=eternity-settings
+Icon=eternity
+Terminal=false
+Categories=Utility;
+Keywords=settings;eternity;assistant;privacy;
+StartupNotify=false

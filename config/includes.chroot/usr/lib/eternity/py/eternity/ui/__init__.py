@@ -137,27 +137,28 @@ def idle(fn, *args):
 
 def shot(win: Gtk.Window, name: str) -> None:
     """Save a PNG of a window when ETERNITY_UI_SHOT_DIR is set (headless checks under Xvfb).
-    Drawn offscreen through cairo, so it does not depend on a compositor."""
+    Lets the frame clock run a few frames so sizes are allocated, then draws the widget tree
+    offscreen through cairo (independent of a compositor or window manager)."""
     d = os.environ.get("ETERNITY_UI_SHOT_DIR")
     if not d:
         return
-    import shutil
-    import subprocess
     import time
-    while Gtk.events_pending():
-        Gtk.main_iteration()
-    os.makedirs(d, exist_ok=True)
-    if shutil.which("import") and os.environ.get("DISPLAY"):
-        # ImageMagick grabs the X root: what the server really shows (needs the window mapped)
-        time.sleep(0.6)
-        while Gtk.events_pending():
-            Gtk.main_iteration()
-        r = subprocess.run(["import", "-window", "root", os.path.join(d, f"{name}.png")], capture_output=True, timeout=20)
-        if r.returncode == 0:
-            return
     import cairo
+    for _ in range(25):
+        while Gtk.events_pending():
+            Gtk.main_iteration_do(False)
+        time.sleep(0.02)
+    nat = win.get_preferred_size()[1]
     alloc = win.get_allocation()
-    w, h = max(1, alloc.width), max(1, alloc.height)
+    w, h = max(1, alloc.width, nat.width), max(1, alloc.height, nat.height)
+    if (alloc.width, alloc.height) != (w, h):
+        win.resize(w, h)
+        for _ in range(15):
+            while Gtk.events_pending():
+                Gtk.main_iteration_do(False)
+            time.sleep(0.02)
+        alloc = win.get_allocation()
+        w, h = max(1, alloc.width), max(1, alloc.height)
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
     cr = cairo.Context(surface)
     cr.set_source_rgb(0x16 / 255, 0x18 / 255, 0x26 / 255)

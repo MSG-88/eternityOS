@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Eternity monitor
+Comment=CPU, memory, disk, network and AI sparklines (Super+M)
+Exec=eternity-monitor
+Icon=eternity
+Terminal=false
+Categories=Utility;
+Keywords=monitor;system;cpu;memory;eternity;
+StartupNotify=false

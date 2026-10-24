@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Eternity launcher
+Comment=Radial application launcher (Super+A)
+Exec=eternity-launcher
+Icon=eternity
+Terminal=false
+Categories=Utility;
+Keywords=apps;launcher;eternity;
+StartupNotify=false

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Eternity 08 shell window (GTK). See /usr/lib/eternity/py/eternity/ui/shell.py
+exec /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity.ui import shell as m; sys.exit(m.main())' "$@"

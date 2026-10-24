@@ -1,6 +1,7 @@
 #!/bin/sh
 # Put the Eternity 08 launchers on the desktop (XFCE needs them executable and trusted).
 # The installer icon appears only in a live session. Runs from /etc/xdg/autostart.
+# With the presence shell active (desktop icons style 0) the launchers live in the shell and the radial launcher.
 DESKTOP=$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Desktop")
 mkdir -p "$DESKTOP"
 

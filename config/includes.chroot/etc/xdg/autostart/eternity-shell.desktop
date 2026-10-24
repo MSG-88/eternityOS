@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Eternity presence
+Comment=The presence at the centre of the desktop (eternity-shell)
+Exec=eternity-shell
+Icon=eternity
+OnlyShowIn=XFCE;
+NoDisplay=true
+StartupNotify=false
+X-XFCE-Autostart-Override=true
+X-GNOME-Autostart-Delay=2
