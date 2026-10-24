@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Eternity 08 install, live</title>
+<meta http-equiv="refresh" content="30">
+<style>
+:root{--bg:#070B14;--fg:#E6F1FF;--muted:#7C8BA1;--accent:#19D3F5}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 Inter,system-ui,sans-serif;padding:16px}
+h1{font-size:18px;margin:0 0 8px}h1 span{color:var(--accent)}
+.meta{color:var(--muted);margin-bottom:12px}
+img{max-width:100%;max-height:calc(100vh - 90px);width:auto;height:auto;object-fit:contain;border:1px solid #1a2436;border-radius:6px;display:block}
+</style></head><body>
+<h1>Eternity <span>08</span> install test, live view</h1>
+<div class="meta">Screenshot of the QEMU VM (Secure Boot, 40 GB disk). The VM captures every 30 s; this page reloads every 30 s. Page loaded at <span id="now"></span>; capture time (IST): <span id="t">see live.txt</span></div>
+<img id="shot" alt="installer screen">
+<script>
+var q='?'+Date.now();
+document.getElementById('shot').src='live.png'+q;
+document.getElementById('now').textContent=new Date().toLocaleTimeString();
+fetch('live.txt'+q).then(function(r){return r.text()}).then(function(s){document.getElementById('t').textContent=s.trim()}).catch(function(){});
+</script></body></html>
