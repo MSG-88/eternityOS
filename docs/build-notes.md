@@ -199,3 +199,24 @@ boot-time sample (commit 223e1a0, build 7). The screenshot run logs in and reach
 branded XFCE desktop with the Install and Chat launchers (`docs/screenshots/build6-*`);
 `free -m` inside the desktop session shows 1.3 GB used, above the 700 MB idle budget of
 the spec, so build 7's run also captures the top processes and `/proc/meminfo`.
+
+## Build 7 (2026-10-24, 35 min, 5.9 GB): full suite green
+
+Image change since build 6: `check_memory` grades the boot-time sample. Suite under TCG
+software emulation (3 GB VMs, `ETERNITY_QEMU_MEM=3072`), about 3 h 20 min in total:
+
+| Run | Result |
+|---|---|
+| smoke (direct kernel) | PASS, every check green, idle 301 MB at multi-user |
+| secureboot (OVMF, shim, GRUB self-test entry) | PASS, `CHECK secureboot: PASS` (Secure Boot enabled), idle 353 MB |
+| visual (OVMF, login, desktop, terminal) | PASS, login screen at 426 s (TCG), password `eternity` accepted, desktop with launchers |
+| bios (SeaBIOS, GRUB self-test entry) | PASS, idle 299 MB, Secure Boot correctly SKIP |
+
+Small model under TCG: 0.9 tok/s prompt, 0.47 tok/s generation (native on the build host:
+31.7 / 12.8), which is why each emulated self-test takes 40-50 minutes.
+Screenshots: `docs/screenshots/build7-*.png`. Output logs: `tests/out/build7/`.
+
+Open: the XFCE session uses about 1.3 GB (`free -m` used) against the spec's 700 MB idle
+budget; `/proc/meminfo` shows 962 MB anonymous, spread evenly over the GTK processes
+(xfwm4 186 MB, nm-applet 154 MB, xfdesktop 130 MB, each panel plugin wrapper 115 MB).
+A diagnostic run with per-process maps follows.
