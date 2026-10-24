@@ -1,0 +1,17 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+jupyterlab
+notebook
+ipykernel
+torch
+transformers
+tokenizers
+safetensors
+sentence-transformers
+accelerate
+huggingface_hub
+llama-cpp-python

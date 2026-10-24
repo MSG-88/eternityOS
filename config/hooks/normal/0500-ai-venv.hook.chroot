@@ -1,0 +1,23 @@
+#!/bin/sh
+# Create the Eternity 08 Python ML environment at /opt/eternity/venv from the pinned
+# lock file, installing from the wheel cache staged by build.sh (no network needed).
+set -e
+LOCK=/usr/lib/eternity/requirements.lock
+WHEELS=/var/cache/eternity-wheels
+[ -f "$LOCK" ] || { echo "missing $LOCK" >&2; exit 1; }
+[ -d "$WHEELS" ] || { echo "missing wheel cache $WHEELS (build.sh stages it)" >&2; exit 1; }
+
+python3 -m venv --system-site-packages /opt/eternity/venv
+# Portable CPU build for llama-cpp-python (sdist): AVX2, not host-tuned.
+export CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"
+export CMAKE_BUILD_PARALLEL_LEVEL="$(nproc)"
+export PIP_NO_CACHE_DIR=1
+# The isolated build environments pip creates for sdists inherit these and stay offline.
+export PIP_NO_INDEX=1
+export PIP_FIND_LINKS="$WHEELS"
+/opt/eternity/venv/bin/pip install --require-hashes -r "$LOCK"
+
+# Trim bytecode caches; they are regenerated on demand and bloat the squashfs.
+find /opt/eternity/venv -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+chmod -R a+rX /opt/eternity/venv
+/opt/eternity/venv/bin/python -c "import torch, transformers, sklearn; print('venv ok: torch', torch.__version__)"
