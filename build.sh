@@ -119,7 +119,10 @@ log "ISO: out/$ISO_NAME ($(du -h "out/$ISO_NAME" | cut -f1)), build time $(( (en
 
 log "Copying results back to $REPO/out"
 mkdir -p "$REPO/out"
-cp -f "out/$ISO_NAME" "$REPO/out/"
+# Direct I/O keeps the 6 GB copy out of the WSL page cache (a cached copy grew the WSL
+# instance to its cap and the host ran short of memory); fall back to cp if drvfs refuses.
+dd if="out/$ISO_NAME" of="$REPO/out/$ISO_NAME" bs=16M iflag=direct oflag=direct status=none 2>/dev/null \
+    || cp -f "out/$ISO_NAME" "$REPO/out/"
 cp -f build.log "$REPO/out/build.log"
 [ -f "out/$ISO_NAME.sha256" ] && cp -f "out/$ISO_NAME.sha256" "$REPO/out/" || true
 
