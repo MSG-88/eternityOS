@@ -184,3 +184,18 @@ drivers and codecs a desktop needs; the venv flag lets system python3 modules su
 
 Verdict as of this commit: not ready to merge until build 6 is built and the smoke, BIOS,
 visual and one real install run pass (see "What was not run").
+
+## Build 6 (2026-10-24, 34 min, 5.88 GB): first green boots of the fixed image
+
+Emulated (TCG, 3 GB VMs). Direct-kernel smoke and the Secure Boot GRUB self-test both
+pass every functional check: login with password `eternity` (verified by crypt), the
+`llama-server` unit's command line comes up and answers `/health`, the offline Calamares
+sequence and `/etc/default/grub` are present, chat answers PONG, and under OVMF
+`check_secureboot` reports Secure Boot enabled through shim and the signed GRUB and
+kernel. The only failure is `check_memory`: it sampled 488 MB (smoke) and 580 MB
+(Secure Boot run) *after* the chat, llama and venv checks had loaded models and torch,
+while the boot-time sample in the same logs was 299 MB / 342 MB; the check now grades the
+boot-time sample (commit 223e1a0, build 7). The screenshot run logs in and reaches the
+branded XFCE desktop with the Install and Chat launchers (`docs/screenshots/build6-*`);
+`free -m` inside the desktop session shows 1.3 GB used, above the 700 MB idle budget of
+the spec, so build 7's run also captures the top processes and `/proc/meminfo`.
