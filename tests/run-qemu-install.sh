@@ -33,7 +33,7 @@ launch() { # launch [extra qemu args...]; detached, pid in $PIDF
         -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
         -drive if=pflash,format=raw,file="$VARS" \
         -drive file="$DISK",if=virtio,format=qcow2 \
-        -nic none -no-reboot -vga virtio -display none -device usb-tablet \
+        -nic none -no-reboot -vga virtio -display none -device qemu-xhci -device usb-tablet \
         -serial "file:$OUT/serial.log" -qmp "unix:$SOCK,server,nowait" "$@" \
         > "$OUT/qemu.log" 2>&1 < /dev/null &
     echo $! > "$PIDF"
