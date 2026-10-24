@@ -1,0 +1,21 @@
+[Unit]
+Description=Eternity 08 local model endpoint (llama.cpp server, OpenAI-compatible on 127.0.0.1:8080)
+Documentation=man:llama-server
+After=network.target
+
+[Service]
+Type=simple
+User=eternity-ai
+Group=eternity-ai
+ExecStart=/usr/local/bin/llama-server -m /opt/eternity/models/default.gguf --host 127.0.0.1 --port 8080 -c 4096 -t %E{ETERNITY_THREADS}
+Environment=ETERNITY_THREADS=4
+Restart=on-failure
+RestartSec=5
+Nice=5
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

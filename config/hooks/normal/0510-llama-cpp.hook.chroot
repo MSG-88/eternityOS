@@ -1,0 +1,25 @@
+#!/bin/sh
+# Build and install llama.cpp (CPU, portable AVX2) system-wide from the pinned release tag.
+set -e
+TAG=$(cat /usr/lib/eternity/llama-cpp.version)
+SRC=/usr/src/llama.cpp
+rm -rf "$SRC"
+git clone --depth 1 --branch "$TAG" https://github.com/ggml-org/llama.cpp "$SRC"
+cd "$SRC"
+cmake -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_SHARED_LIBS=ON \
+    -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON \
+    -DLLAMA_CURL=OFF \
+    -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_SERVER=ON
+cmake --build build -j"$(nproc)"
+cmake --install build --prefix /usr/local
+ldconfig
+echo "$TAG" > /usr/local/share/llama-cpp.version
+cd /
+rm -rf "$SRC"
+
+# Service account for the (disabled) always-on model endpoint
+getent passwd eternity-ai >/dev/null || useradd --system --home-dir /opt/eternity --shell /usr/sbin/nologin eternity-ai
+
+ls -1 /usr/local/bin | grep -E '^llama-' | tr '\n' ' '; echo
