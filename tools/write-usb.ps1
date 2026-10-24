@@ -72,7 +72,7 @@ try {
 
 
 Write-Host 'Verifying the first 64 MB ...'
-$verify = [Math]::Min(64MB, $size)
+$verify = [int][Math]::Min([long]64MB, [long]$size)   # both operands long: Math.Min(int, long) has no overload
 $sha = [System.Security.Cryptography.SHA256]::Create()
 $a = [System.IO.File]::OpenRead($isoFull); $ba = New-Object byte[] $verify; [void]$a.Read($ba, 0, $verify); $a.Dispose()
 $r = New-Object System.IO.FileStream($dev, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None, 4MB); $bb = New-Object byte[] $verify; [void]$r.Read($bb, 0, $verify); $r.Dispose()
@@ -80,3 +80,4 @@ $ha = [BitConverter]::ToString($sha.ComputeHash($ba)); $hb = [BitConverter]::ToS
 Set-Disk -Number $disk.Number -IsOffline $false -ErrorAction SilentlyContinue
 if ($ha -ne $hb) { throw 'verification FAILED: data read back differs from the ISO' }
 Write-Host 'Done. The stick is ready: boot the laptop from it (MSI: F11 boot menu), Secure Boot can stay on.'
+Write-Host 'Windows now shows the image''s three GPT partitions (164 KB, 3 MB EFI, the ISO9660 volume); do not format them.'
