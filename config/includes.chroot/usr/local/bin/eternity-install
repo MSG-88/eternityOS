@@ -1,0 +1,15 @@
+#!/bin/sh
+# Launch the Eternity 08 installer (Calamares) from the live session.
+# A stale /etc/fstab left by live-build confuses partitioning; park it while the installer runs.
+if [ -f /etc/fstab ]; then
+    sudo mv /etc/fstab /etc/fstab.orig.eternity
+fi
+export QT_AUTO_SCREEN_SCALE_FACTOR=1
+xhost +si:localuser:root >/dev/null 2>&1
+pkexec calamares
+rc=$?
+xhost -si:localuser:root >/dev/null 2>&1
+if [ -f /etc/fstab.orig.eternity ]; then
+    sudo mv /etc/fstab.orig.eternity /etc/fstab
+fi
+exit $rc

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Install Eternity 08
+GenericName=System Installer
+Comment=Install Eternity 08 to this computer
+Exec=eternity-install
+Icon=eternity
+Terminal=false
+Categories=System;
+Keywords=install;installer;calamares;eternity;
+StartupWMClass=calamares
+StartupNotify=true

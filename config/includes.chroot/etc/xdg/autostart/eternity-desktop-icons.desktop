@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Eternity 08 desktop launchers
+Comment=Places the Eternity 08 launchers on the desktop
+Exec=/usr/lib/eternity/desktop-icons.sh
+OnlyShowIn=XFCE;
+NoDisplay=true
+StartupNotify=false
+X-XFCE-Autostart-Override=true
