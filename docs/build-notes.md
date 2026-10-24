@@ -244,3 +244,4 @@ nm-applet 52 MB (154), each panel plugin wrapper 45-50 MB (115), xfwm4 144 MB (1
 which 49 MB is libLLVM for the software-GL compositor under QEMU; hardware GL on the
 laptop). Within the 700 MB idle budget of the spec even with the terminal and fastfetch
 open. Screenshots: `docs/screenshots/build8-*.png`.
+BIOS run PASS as well: **build 8 passes the whole suite** (`tests/out/build8/build8-run.log`).
