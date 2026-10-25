@@ -1,7 +1,7 @@
 import QtQuick
 import Quickshell
 
-// The Eternity shell: per screen the presence (background layer) and the status strip.
+// The Eternity shell: per screen the presence (background layer), the status strip and the Ask bar.
 ShellRoot {
     Variants {
         model: Quickshell.screens
@@ -10,6 +10,7 @@ ShellRoot {
                 required property var modelData
                 Presence { screen: modelData }
                 Strip { screen: modelData }
+                Bar { screen: modelData }
             }
         }
     }

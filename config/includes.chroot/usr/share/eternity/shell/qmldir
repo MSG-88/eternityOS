@@ -14,3 +14,6 @@ Hud 1.0 Hud.qml
 Sweep 1.0 Sweep.qml
 PresenceContent 1.0 PresenceContent.qml
 Presence 1.0 Presence.qml
+Consent 1.0 Consent.qml
+BarContent 1.0 BarContent.qml
+Bar 1.0 Bar.qml

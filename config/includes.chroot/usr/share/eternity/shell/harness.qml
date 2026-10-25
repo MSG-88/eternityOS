@@ -4,7 +4,7 @@ import Quickshell
 // Test harness (tests/host/test_shell_render.sh): loads the shell's content items into a plain
 // window of the requested logical size (ETERNITY_HARNESS_W/H), with or without a daemon, and
 // writes the geometry dump + screenshot through Dump. Lives next to the shell because Quickshell
-// only imports files under its config root. Scenarios: strip, strip100, presence, presence-windows.
+// only imports files under its config root. Scenarios: strip, strip100, presence, presence-windows, bar, bar-focused, answer, answer-streaming, consent, consent-pin.
 ShellRoot {
     id: root
     readonly property int w: parseInt(Quickshell.env("ETERNITY_HARNESS_W") || "1536")
@@ -12,6 +12,7 @@ ShellRoot {
     readonly property string scenario: Quickshell.env("ETERNITY_HARNESS_SCENARIO") || "strip"
     readonly property real k: Geometry.k(w, h)
     readonly property bool presence: scenario.indexOf("presence") === 0
+    readonly property bool barScene: scenario.indexOf("bar") === 0 || scenario.indexOf("answer") === 0 || scenario.indexOf("consent") === 0
     readonly property var designCards: [
         { id: "calendar", kicker: "Calendar", title: "Design review", body: "Today \u00b7 15:00 \u2014 16:00", meta: "with Priya, Ola" },
         { id: "mail", kicker: "Mail", title: "3 new, 1 needs you", body: "Ola: \u201cshell spec v3 is ready for a read\u201d", meta: "summarised" },
@@ -32,14 +33,39 @@ ShellRoot {
                 active: root.presence
                 sourceComponent: PresenceContent { k: root.k; cards: root.designCards; animated: false; windowState: root.scenario === "presence-windows" ? "windows" : "empty" }
             }
-            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence }
+            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene }
+            Loader {
+                id: barLoader
+                anchors.fill: parent
+                active: root.barScene
+                sourceComponent: BarContent { id: bc; k: root.k; width: root.w; height: root.h }
+                onLoaded: {
+                    const b = item;
+                    if (root.scenario === "bar-focused") b.show("");
+                    if (root.scenario === "answer" || root.scenario === "answer-streaming") {
+                        b.show(""); b.streaming = true;
+                        b.applyEvent("ask.text", { delta: "Done. Design" }); b.applyEvent("ask.text", { delta: " review" });
+                        if (root.scenario === "answer") {
+                            b.applyEvent("ask.text", { delta: " is now tomorrow at 15:00." });
+                            b.applyEvent("ask.action", { name: "write_note", ok: true, summary: "note saved", undoable: true });
+                            b.applyEvent("ask.done", { readout: "on device  \u00b7  first token 41 ms  \u00b7  ~170 tok/s" });
+                        }
+                    }
+                    if (root.scenario === "consent") b.applyEvent("consent.request", { consent_id: "c1", tool: "write_note", risk: "change", description: "Save a markdown note in ~/Documents/Notes\ntitle = Design review", need_pin: false });
+                    if (root.scenario === "consent-pin") b.applyEvent("consent.request", { consent_id: "c2", tool: "run_command", risk: "dangerous", description: "Run a shell command as the user\ncommand = ls", need_pin: true });
+                }
+            }
         }
         Dump {
             dir: Quickshell.env("ETERNITY_SHELL_DUMP") || ""
             name: root.scenario
             target: stage
-            collect: () => ({ screen: [root.w, root.h], k: root.k, scenario: root.scenario, connected: Daemon.connected,
-                              items: root.presence ? presenceLoader.item.geometry() : strip.geometry() })
+            collect: () => {
+                const base = { screen: [root.w, root.h], k: root.k, scenario: root.scenario, connected: Daemon.connected };
+                if (root.presence) { base.items = presenceLoader.item.geometry(); return base; }
+                if (root.barScene) { base.items = barLoader.item.geometry(); return Object.assign(base, barLoader.item.flags()); }
+                base.items = strip.geometry(); return base;
+            }
         }
     }
 }

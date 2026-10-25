@@ -74,4 +74,28 @@ render 1536 864 presence-windows && {
 }
 [ -f "$OUT/presence/presence.png" ] && ok "presence.png written" || bad "presence.png missing"
 
+# command bar (design: 800x54 at 560,950; placeholder; chip "Super Space"; accent ring when focused)
+render 1536 864 bar && {
+    check bar 'near(it["bar"][0], 560*k, 1) and near(it["bar"][1], 950*k, 1) and near(it["bar"][2], 800*k, 1) and near(it["bar"][3], 54*k, 1)' "bar at (560k, 950k) 800k x 54k"
+    check bar 'it["placeholder"][4] == "Ask Eternity, or type a command" and it["chip"][4] == "Super Space"' "placeholder and chip text"
+    check bar 'd["focused"] is False and d["active"] is False' "idle: not focused"
+}
+render 1536 864 bar-focused && check bar-focused 'd["focused"] is True and d["active"] is True and d["ring"] is True' "focused: accent ring, active overlay"
+# streamed answer: three text deltas then done (harness feeds the events)
+render 1536 864 answer && {
+    check answer 'it["answer"][4] == "Done. Design review is now tomorrow at 15:00." and near(it["answer"][0], 560*k, 1) and near(it["answer"][1], 650*k, 2) and near(it["answer"][2], 800*k, 1)' "answer text at (560k, 650k) w 800k"
+    check answer 'near(it["rule"][1], 620*k, 1) and near(it["rule"][2], 800*k, 1)' "rule at y 620k"
+    check answer 'd["caret"] is False and it["readout"][4].find("tok/s") >= 0' "caret hidden after done, readout shows tok/s"
+    check answer 'd["thinking"] is False' "thinking line hidden after done"
+    check answer 'near(it["readout"][0] + it["readout"][2], 1536 - 40*k, 2) and near(it["readout"][1], 60*k, 2)' "readout top-right (right 40k, top 60k)"
+}
+render 1536 864 answer-streaming && check answer-streaming 'd["caret"] is True and it["answer"][4] == "Done. Design review"' "caret visible while streaming"
+# consent dialog from a consent.request event
+render 1536 864 consent && {
+    check consent 'it["consent_kicker"][4] == "ALLOW WRITE NOTE?" and d["pin_visible"] is False' "consent kicker, no PIN"
+    check consent 'near(it["consent"][2], 440*k, 1) and near(it["consent"][0] + it["consent"][2]/2, 1536/2, 2)' "dialog 440k wide, centred"
+}
+render 1536 864 consent-pin && check consent-pin 'd["pin_visible"] is True and it["consent_kicker"][4] == "ALLOW RUN COMMAND?"' "PIN field when required"
+for s in bar answer consent; do [ -f "$OUT/$s/$s.png" ] && ok "$s.png written" || bad "$s.png missing"; done
+
 if [ $fail = 0 ]; then echo "SHELL RENDER: PASS"; else echo "SHELL RENDER: FAIL (artifacts in $OUT)"; exit 1; fi
