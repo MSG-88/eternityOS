@@ -1,10 +1,16 @@
 import QtQuick
 import Quickshell
 
-// The Eternity shell: one strip per screen (slice 1). Presence, bar, lock follow in later tasks.
+// The Eternity shell: per screen the presence (background layer) and the status strip.
 ShellRoot {
     Variants {
         model: Quickshell.screens
-        delegate: Component { Strip { required property var modelData; screen: modelData } }
+        delegate: Component {
+            Scope {
+                required property var modelData
+                Presence { screen: modelData }
+                Strip { screen: modelData }
+            }
+        }
     }
 }

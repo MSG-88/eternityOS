@@ -54,4 +54,24 @@ render 1920 1080 strip100 && check strip100 'near(k, 1.0, 0.001) and near(it["st
 
 [ -f "$OUT/strip/strip.png" ] && ok "strip.png written ($OUT/strip/strip.png)" || bad "strip.png missing"
 
+# presence desktop with the four design cards (harness injects the state; rot frozen at 0)
+render 1536 864 presence && {
+    check presence 'near(it["core"][0] + it["core"][2]/2, 960*k, 1) and near(it["core"][1] + it["core"][3]/2, 540*k, 1)' "core centred at (960k, 540k)"
+    check presence 'near(it["core"][2], 600*0.5*k, 2)' "core box 600k at s 0.5"
+    check presence 'len([x for x in it if x.startswith("card") and x[4:].isdigit()]) == 4 and all(near(it[x][2], 300*k, 1) for x in it if x.startswith("card") and x[4:].isdigit())' "four cards 300k wide"
+    check presence 'near(it["card0"][0] + 150*k, (960 + 0)*k, 2) and near(it["card0"][1] + 60*k, (540 - 270)*k, 2)' "card 0 at angle -90 (top of the orbit)"
+    check presence 'near(it["card1"][0] + 150*k, (960 + 440)*k, 2) and near(it["card1"][1] + 60*k, 540*k, 2)' "card 1 at angle 0 (right)"
+    check presence 'near(it["card3"][0] + 150*k, (960 - 440)*k, 2)' "card 3 at angle 180 (left)"
+    check presence 'near(it["caption"][1], 900*k, 2) and it["caption"][4].startswith("Everything stays in orbit")' "caption at y 900k"
+    check presence 'near(it["hud"][0], 56*k, 1) and near(it["hud"][2], 1808*k, 1) and near(it["hudleg"][2], 22*k, 1)' "HUD frame 56,112 1808x812 with 22k legs"
+    check presence 'it["card0"][4] == "Calendar" and it["card1"][4] == "Mail"' "cards show kicker text"
+    grep -iE "error|exception" "$OUT/presence/log.txt" | grep -vE "ServerNotFoundError|theme.json" | grep -q . && bad "presence: errors in log" || ok "presence: clean log"
+}
+# the same workspace with windows: cards hide, the core moves to the Files placement
+render 1536 864 presence-windows && {
+    check presence-windows 'it["cards_visible"] is False' "windows: cards hidden"
+    check presence-windows 'near(it["core"][0] + it["core"][2]/2, 1600*k, 1) and near(it["core"][2], 600*0.38*k, 2)' "windows: core at (1600k, 540k) s 0.38"
+}
+[ -f "$OUT/presence/presence.png" ] && ok "presence.png written" || bad "presence.png missing"
+
 if [ $fail = 0 ]; then echo "SHELL RENDER: PASS"; else echo "SHELL RENDER: FAIL (artifacts in $OUT)"; exit 1; fi
