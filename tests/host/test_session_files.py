@@ -41,7 +41,8 @@ class TestSessionFiles(unittest.TestCase):
         s = read("config/includes.chroot/usr/local/bin/eternity-session")
         self.assertIn("XDG_CURRENT_DESKTOP=Eternity", s)
         self.assertIn("eternity-theme render", s)
-        self.assertIn("exec Hyprland", s)
+        self.assertIn("exec start-hyprland", s)        # Hyprland 0.55 warns on screen when started bare
+        self.assertIn("exec Hyprland", s)              # fallback when the wrapper is missing
         self.assertIn("WLR_RENDERER_ALLOW_SOFTWARE=1", s)
 
     def test_session_never_forces_software_gl_on_hyprland(self):

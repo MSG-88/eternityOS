@@ -32,4 +32,8 @@ fi
 mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/hyprland"     # Hyprland's crash-report directory
 eternity-theme render || echo "eternity-session: theme render failed, using the shipped defaults" >&2
 [ -s "$CFG/hyprland.conf" ] || cp /usr/share/eternity/hyprland.fallback.conf "$CFG/hyprland.conf" 2>/dev/null
+# Hyprland 0.55 wants its wrapper (crash recovery, env); bare Hyprland shows a warning on screen
+if command -v start-hyprland >/dev/null 2>&1; then
+    exec start-hyprland --config "$CFG/hyprland.conf"
+fi
 exec Hyprland --config "$CFG/hyprland.conf"

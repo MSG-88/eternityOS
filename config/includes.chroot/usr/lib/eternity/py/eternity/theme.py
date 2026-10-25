@@ -121,7 +121,7 @@ def _hypr(cfg: dict) -> str:
     for d, key in (("l", "right"), ("h", "left"), ("k", "up"), ("j", "down")):
         binds.append(f"bind = SUPER, {key}, movefocus, {d}")
         binds.append(f"bind = SUPER SHIFT, {key}, movewindow, {d}")
-    layer_rules = "\n".join(f"layerrule = blur, {ns}\nlayerrule = ignorezero, {ns}" for ns in lay.get("blur_namespaces", []))
+    layer_rules = "\n".join(f"layerrule = blur on, match:namespace {ns}\nlayerrule = ignore_alpha 0, match:namespace {ns}" for ns in lay.get("blur_namespaces", []))
     execs = "\n".join(f"exec-once = {x}" for x in lay.get("exec_once", ["eternity-supervise eternity-daemon", "eternity-supervise quickshell -c eternity", "hypridle -c /usr/share/eternity/hypridle.conf", "/usr/libexec/polkit-mate-authentication-agent-1", "eternity-firstrun --autostart"]))
     tpl = string.Template(open(os.path.join(SHARE, "hyprland.base.conf"), encoding="utf-8").read())
     return tpl.substitute(
