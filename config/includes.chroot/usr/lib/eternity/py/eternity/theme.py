@@ -6,7 +6,7 @@ the merged configuration this module renders, into ~/.config/eternity/generated/
 
     hyprland.conf   the compositor: monitors (scale), borders, gaps, rounding, blur rules,
                     animations, binds, exec-once (daemon, shell, idle)
-    Theme.qml       a QML singleton the shell imports: colours, radii, fonts, motion tokens, scale
+    Theme.qml       a QML singleton (reference) and theme.json, which the shell's Theme singleton reads
     gtk.css         @define-color tokens for ordinary GTK apps
 
     cfg = load()                 # merged dict: {"theme": {...}, "layout": {...}, "keys": {...}, "_errors": [...]}
@@ -175,7 +175,9 @@ def render(out_dir: Optional[str] = None, cfg: Optional[dict] = None) -> List[st
     out_dir = out_dir or os.path.join(_user_dir(), "generated")
     os.makedirs(out_dir, exist_ok=True)
     written = []
-    for name, text in (("hyprland.conf", _hypr(cfg)), ("Theme.qml", _qml(cfg)), ("gtk.css", _css(cfg))):
+    import json
+    theme_json = json.dumps({**cfg["theme"], "layout": cfg["layout"]}, indent=1)
+    for name, text in (("hyprland.conf", _hypr(cfg)), ("Theme.qml", _qml(cfg)), ("gtk.css", _css(cfg)), ("theme.json", theme_json)):
         path = os.path.join(out_dir, name)
         tmp = path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:

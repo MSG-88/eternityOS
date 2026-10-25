@@ -32,7 +32,9 @@ class Base(unittest.TestCase):
 class TestRender(Base):
     def test_defaults_render(self):
         files = theme.render(self.out)
-        self.assertEqual(sorted(os.path.basename(f) for f in files), ["Theme.qml", "gtk.css", "hyprland.conf"])
+        self.assertEqual(sorted(os.path.basename(f) for f in files), ["Theme.qml", "gtk.css", "hyprland.conf", "theme.json"])
+        import json
+        self.assertEqual(json.load(open(os.path.join(self.out, "theme.json")))["color"]["accent"], "#9184d9")
         hypr = read(os.path.join(self.out, "hyprland.conf"))
         qml = read(os.path.join(self.out, "Theme.qml"))
         css = read(os.path.join(self.out, "gtk.css"))

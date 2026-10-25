@@ -334,9 +334,28 @@ def boot_assets():
               "Every action the assistant proposes is shown, confirmed and logged. Undo is one click away.")
 
 
+def atlas(frames=48, size=256, cols=8):
+    """Sprite sheet of the animated Möbius mark for the shell's AnimatedSprite: `frames` frames
+    of `size` px, `cols` per row (2048x1536: fits a 2048 texture even under software GL), no baked
+    glow (the shell draws the glow on the GPU)."""
+    rows = (frames + cols - 1) // cols
+    sheet = Image.new("RGBA", (cols * size, rows * size), (0, 0, 0, 0))
+    for i in range(frames):
+        fr = mark(size, draw=1.0, phase=i / frames * 2 * math.pi, glow=0, light_t=i / frames)
+        sheet.alpha_composite(fr, ((i % cols) * size, (i // cols) * size))
+    dst = os.path.join(CHROOT, "usr", "share", "eternity", "shell", "assets")
+    os.makedirs(dst, exist_ok=True)
+    sheet.save(os.path.join(dst, "mobius-atlas.png"), optimize=True)
+    return os.path.join(dst, "mobius-atlas.png")
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
+    if "--atlas" in sys.argv:
+        print(atlas())
+        return
     boot_assets()
+    atlas()
     with open(os.path.join(OUT, "logo.svg"), "w", encoding="utf-8") as f:
         f.write(mark_svg())
     with open(os.path.join(ROOT, "branding", "logo.svg"), "w", encoding="utf-8") as f:

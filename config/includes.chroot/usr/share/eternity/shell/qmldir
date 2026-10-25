@@ -1,0 +1,10 @@
+module eternity
+singleton Theme 1.0 Theme.qml
+singleton Geometry 1.0 Geometry.qml
+singleton Daemon 1.0 Daemon.qml
+Mobius 1.0 Mobius.qml
+Wordmark 1.0 Wordmark.qml
+StripContent 1.0 StripContent.qml
+SystemClockFallback 1.0 SystemClockFallback.qml
+Strip 1.0 Strip.qml
+Dump 1.0 Dump.qml
