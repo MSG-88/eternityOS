@@ -52,7 +52,7 @@ class TestSessionFiles(unittest.TestCase):
         self.assertFalse(re.search(r"^\s*export LIBGL_ALWAYS_SOFTWARE", s, re.M), "LIBGL_ALWAYS_SOFTWARE exported")
         self.assertIn("AQ_NO_MODIFIERS=1", s)
         self.assertIn("QT_QUICK_BACKEND=software", s)
-        self.assertIn(".cache/hyprland", s)          # Hyprland's crash-report directory must exist
+        self.assertRegex(s, r"mkdir -p .*\.cache\}?/hyprland")   # Hyprland's crash-report directory must exist
 
     def test_live_config_component(self):
         s = read("config/includes.chroot/usr/lib/live/config/0032-eternity-session")
