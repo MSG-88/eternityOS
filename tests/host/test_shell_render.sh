@@ -128,6 +128,19 @@ render 1536 864 greeter && {
 }
 render 1536 864 greeter-fail && check greeter-fail 'd["failures"] == 1 and d["shake"] is True and d["locked"] is True' "a wrong passphrase shakes and stays"
 [ -f "$OUT/greeter/greeter.png" ] && ok "greeter.png written" || bad "greeter.png missing"
+# slice 2: launcher ring (12 tiles on the 1.35r x r ellipse, r 350 when settled), filter, window ring
+render 1536 864 launcher && {
+    check launcher 'd["tile_count"] == 12 and all(near(it["tile" + str(i)][2], 64*k, 1) for i in range(12))' "12 tiles of 64k"
+    check launcher 'near(it["tile0"][0] + 32*k, 960*k, 2) and near(it["tile0"][1] + 32*k, (540 - 350)*k, 2)' "tile 0 at the top of the ring (angle -90, r 350)"
+    check launcher 'near(it["tile3"][0] + 32*k, (960 + 350*1.35)*k, 2) and near(it["tile3"][1] + 32*k, 540*k, 2)' "tile 3 at the right (angle 0)"
+    check launcher 'it["filter"][4].startswith("Type to filter") and near(it["filter"][1], 100*k, 2)' "filter line at y 100k"
+    check launcher 'it["tile0"][4] == "Files" and d["selected"] == "Files"' "first tile Files, selected"
+}
+render 1536 864 launcher-filter && check launcher-filter 'd["tile_count"] == 1 and it["tile0"][4] == "Files" and d["selected"] == "Files" and d["query"] == "fil"' "typing fil leaves Files selected"
+render 1536 864 launcher-nomatch && check launcher-nomatch 'd["tile_count"] == 0 and it["filter"][4].find("No match") >= 0 and d["launched"] == []' "no match: nothing to launch"
+render 1536 864 launcher-page && check launcher-page 'd["tile_count"] == 4 and d["page"] == 1 and d["pages"] == 2 and it["tile0"][4] == "App13"' "16 apps: page 2 shows the rest"
+render 1536 864 windowring && check windowring 'd["tile_count"] == 3 and it["tile0"][4] == "Terminal" and d["selected"] == "Terminal"' "window ring lists toplevels"
+[ -f "$OUT/launcher/launcher.png" ] && ok "launcher.png written" || bad "launcher.png missing"
 render 1536 864 latency && check latency 'd["lat_count"] == 20 and near(d["lat_p95"], 19, 1) and d["lat_file"].endswith("/eternity/latency.json")' "latency samples: p95 of 20 samples"
 
 if [ $fail = 0 ]; then echo "SHELL RENDER: PASS"; else echo "SHELL RENDER: FAIL (artifacts in $OUT)"; exit 1; fi

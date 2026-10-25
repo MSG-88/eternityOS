@@ -171,7 +171,7 @@ class Daemon:
             "ask.cancel": self.m_ask_cancel, "ask.undo": self.m_ask_undo, "ask.show": self.m_ask_show, "consent.reply": self.m_consent_reply,
             "consent.ask": self.m_consent_ask, "session.lock": self.m_lock, "session.locked": self.m_locked, "session.unlocked": self.m_unlocked,
             "session.lock_info": self.m_lock_info, "pin.verify": self.m_pin,
-            "hw.summary": self.m_hw, "launcher.index": self.m_launcher, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
+            "hw.summary": self.m_hw, "launcher.index": self.m_launcher, "launcher.show": self.m_launcher_show, "launcher.launch": self.m_launcher_launch, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
         }
         # methods answered on a worker thread because they block on the user or on slow probes
         self.slow_methods = {"consent.ask", "session.lock", "state.get", "cards.get", "metrics.sample", "hw.summary", "pin.verify",
@@ -654,9 +654,22 @@ class Daemon:
         from . import launcher_index as L
         q = str(params.get("query", "")).lower().strip()
         apps = L.load()
-        rows = [{"name": a.name, "exec": a.exec, "icon": getattr(a, "icon", ""), "id": getattr(a, "id", a.name)} for a in apps
-                if not q or q in a.name.lower()]
+        rows = [{"name": a.name, "exec": a.exec_cmd, "icon": a.icon, "id": a.desktop_id or a.name, "comment": a.comment}
+                for a in apps if not q or q in a.name.lower() or any(q in k.lower() for k in a.keywords)]
         return {"apps": rows[: int(params.get("limit", 60))]}
+
+    def m_launcher_show(self, params: dict) -> dict:
+        self.emit("launcher.show", {})
+        return {}
+
+    def m_launcher_launch(self, params: dict) -> dict:
+        from . import launcher_index as L
+        wanted = str(params.get("id", ""))
+        for a in L.load():
+            if wanted and wanted in (a.desktop_id, a.name):
+                L.launch(a)
+                return {"ok": True, "name": a.name}
+        raise DaemonError(f"no app {wanted!r}")
 
     def m_claude_sessions(self, params: dict) -> dict:
         return {"sessions": P.claude_code_sessions(int(params.get("limit", 20)))}

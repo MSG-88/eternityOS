@@ -24,6 +24,10 @@ screenshot = "grim -g \"$(slurp)\" - | wl-copy"
 [bindr]
 launcher = "SUPER, Super_L"
 
+# Quickshell global shortcuts (bind = KEYS, global, quickshell:<name>; the shell handles them)
+[global]
+window_ring = "SUPER, Tab"
+
 # Compositor dispatchers (name = Hyprland dispatcher, value = keys)
 [dispatch]
 killactive = "SUPER, Q"

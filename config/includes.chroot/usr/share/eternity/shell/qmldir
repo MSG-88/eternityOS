@@ -22,3 +22,7 @@ PamAuth 1.0 PamAuth.qml
 LockContent 1.0 LockContent.qml
 Lock 1.0 Lock.qml
 GreeterContent 1.0 GreeterContent.qml
+RingContent 1.0 RingContent.qml
+LauncherContent 1.0 LauncherContent.qml
+WindowRingContent 1.0 WindowRingContent.qml
+Launcher 1.0 Launcher.qml

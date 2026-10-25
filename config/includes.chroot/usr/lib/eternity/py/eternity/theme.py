@@ -111,6 +111,8 @@ def _hypr(cfg: dict) -> str:
         action = (keys.get("action") or {}).get(name)
         if action:
             binds.append(f"bindr = {combo}, exec, {action}")
+    for name, combo in (keys.get("global") or {}).items():
+        binds.append(f"bind = {combo}, global, quickshell:{name.replace('_', '-')}")
     for name, combo in (keys.get("dispatch") or {}).items():
         binds.append(f"bind = {combo}, {name.replace('__', ' ').replace('_', ' ', 0)}")
     for i in range(1, 10):

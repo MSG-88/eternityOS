@@ -12,6 +12,7 @@ ShellRoot {
                 Presence { screen: modelData }
                 Strip { screen: modelData }
                 Bar { screen: modelData }
+                Launcher { screen: modelData }
             }
         }
     }

@@ -295,6 +295,42 @@ class TestReviewFixes(Base):
         self.assertEqual(r["verbosity"], "normal")
 
 
+class TestLauncher(Base):
+    """Slice 2 Task 2: the launcher index over the socket, the show event and launching."""
+
+    def desktop(self, name, exec_cmd):
+        d = os.path.join(self.tmp.name, ".local", "share", "applications")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, name.lower() + ".desktop"), "w") as f:
+            f.write(f"[Desktop Entry]\nType=Application\nName={name}\nExec={exec_cmd}\nIcon=utilities-terminal\n")
+
+    def test_index_filter_and_show(self):
+        os.environ["XDG_DATA_HOME"] = os.path.join(self.tmp.name, ".local", "share")
+        self.desktop("Terminal", "true")
+        self.desktop("Files", "true")
+        rows = self.c.call("launcher.index", query="term")["apps"]
+        self.assertTrue(any(r["name"] == "Terminal" for r in rows))
+        self.assertTrue(all({"name", "exec", "icon", "id"} <= set(r) for r in rows))
+        self.assertFalse(any(r["name"] == "Files" for r in rows))
+        sub = Subscriber(self.sock_path)
+        self.c.call("launcher.show")
+        sub.wait("launcher.show")
+
+    def test_launch_by_id(self):
+        os.environ["XDG_DATA_HOME"] = os.path.join(self.tmp.name, ".local", "share")
+        marker = os.path.join(self.tmp.name, "launched")
+        self.desktop("Marker", f"touch {marker}")
+        row = next(r for r in self.c.call("launcher.index", query="marker")["apps"])
+        self.assertTrue(self.c.call("launcher.launch", id=row["id"])["ok"])
+        for _ in range(50):
+            if os.path.exists(marker):
+                break
+            time.sleep(0.1)
+        self.assertTrue(os.path.exists(marker))
+        with self.assertRaises(D.DaemonError):
+            self.c.call("launcher.launch", id="no-such-app")
+
+
 class TestSecurity(unittest.TestCase):
     def test_rejects_other_uid(self):
         tmp = tempfile.mkdtemp()

@@ -14,6 +14,8 @@ ShellRoot {
     readonly property bool presence: scenario.indexOf("presence") === 0
     readonly property bool lockScene: scenario.indexOf("lock") === 0
     readonly property bool greeterScene: scenario.indexOf("greeter") === 0
+    readonly property bool ringScene: scenario.indexOf("launcher") === 0 || scenario === "windowring"
+    readonly property var designApps: ["Files", "Mail", "Calendar", "Notes", "Music", "Photos", "Terminal", "Browser", "Messages", "Code", "Monitor", "Settings"].map(n => ({ id: n.toLowerCase(), name: n, exec: n.toLowerCase(), icon: "" }))
     readonly property bool plainScene: scenario === "screens" || scenario === "latency"
     readonly property bool barScene: scenario.indexOf("bar") === 0 || scenario.indexOf("answer") === 0 || scenario.indexOf("consent") === 0
     readonly property var designCards: [
@@ -36,7 +38,22 @@ ShellRoot {
                 active: root.presence
                 sourceComponent: PresenceContent { k: root.k; cards: root.designCards; animated: false; windowState: root.scenario === "presence-windows" ? "windows" : "empty" }
             }
-            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene && !root.greeterScene }
+            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene && !root.greeterScene && !root.ringScene }
+            Loader {
+                id: ringLoader
+                anchors.fill: parent
+                active: root.ringScene
+                sourceComponent: root.scenario === "windowring"
+                    ? windowRingComp : launcherComp
+                onLoaded: {
+                    const r = item;
+                    if (root.scenario === "launcher-filter") r.query = "fil";
+                    if (root.scenario === "launcher-nomatch") { r.query = "zzz"; r.submit(); }
+                    if (root.scenario === "launcher-page") { r.apps = Array.from({ length: 16 }, (_, i) => ({ id: "app" + (i + 1), name: "App" + (i + 1), exec: "true", icon: "" })); r.nextPage(); }
+                }
+            }
+            Component { id: launcherComp; LauncherContent { k: root.k; animated: false; apps: root.designApps } }
+            Component { id: windowRingComp; WindowRingContent { k: root.k; animated: false; windows: [{ id: "0x1", title: "Terminal", app: "xfce4-terminal" }, { id: "0x2", title: "Browser", app: "firefox" }, { id: "0x3", title: "Files", app: "thunar" }] } }
             Loader {
                 id: greeterLoader
                 anchors.fill: parent
@@ -106,6 +123,7 @@ ShellRoot {
                 if (root.barScene) { base.items = barLoader.item.geometry(); return Object.assign(base, barLoader.item.flags()); }
                 if (root.lockScene) { base.items = lockLoader.item.geometry(); return Object.assign(base, lockLoader.item.flags()); }
                 if (root.greeterScene) { base.items = greeterLoader.item.geometry(); return Object.assign(base, greeterLoader.item.flags()); }
+                if (root.ringScene) { base.items = ringLoader.item.geometry(); return Object.assign(base, ringLoader.item.flags()); }
                 base.items = strip.geometry(); return base;
             }
         }

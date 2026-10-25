@@ -47,6 +47,7 @@ class TestRender(Base):
         self.assertIn("rounding = 8", hypr)
         self.assertIn("bind = SUPER, space, exec, eternity-ask --show", hypr)
         self.assertIn("bindr = SUPER, Super_L, exec, eternity-launcher", hypr)   # release of Super alone, not every Super press
+        self.assertIn("bind = SUPER, Tab, global, quickshell:window-ring", hypr)    # the window ring is a Quickshell global shortcut
         self.assertNotIn("code:133", hypr)
         self.assertIn("allow_session_lock_restore = true", hypr)
         self.assertIn("exec-once = eternity-supervise eternity-daemon", hypr)
