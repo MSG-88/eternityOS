@@ -536,3 +536,59 @@ hyprlock, hypridle and xdg-desktop-portal-hyprland download and resolve on Debia
 screenshot tests can run on the host and the shell has a software-rendering path for the TCG
 VMs. The Qt platform plugins present include wayland-egl, offscreen, eglfs, linuxfb and vnc.
 Decision recorded in the phase 3 spec §4.1 (Hyprland + Quickshell), pending the owner's answer.
+
+### Build 13 content (committed 2026-10-25 evening; phase 3 slice 1, plan
+### `docs/superpowers/plans/2026-10-25-eternity-08-phase3-build13-session.md`)
+
+Build 12 was folded into this build (the queued chain hands over to `tools/dev/chain-build13.sh`).
+Everything below is covered by host tests (`tools/dev/t.sh`: 100+ unit tests PASS), the Xvfb UI
+smoke (PASS) and the new offscreen shell render test (`tests/host/test_shell_render.sh`,
+`tools/dev/shell-render.sh`: SHELL RENDER: PASS, screenshots `docs/screenshots/build13-*-offscreen.png`).
+
+- **The Eternity session** (`/usr/share/wayland-sessions/eternity.desktop` -> `eternity-session`):
+  Hyprland 0.55 + Quickshell 0.3 from trixie-backports (`config/archives/eternity-backports.pref.chroot`),
+  Qt Quick modules, portals (hyprland + gtk), hypridle, wl-clipboard, grim, slurp. XFCE stays the
+  default; the GRUB entry "Eternity 08 Live (Eternity shell)" (hotkey n) or `eternity.session=eternity`
+  on the kernel line selects it (live-config component `0032-eternity-session` writes lightdm's
+  `user-session`). Software GL is detected (no hardware DRM driver) and Hyprland/Qt fall back.
+- **`eternity-theme`** (`eternity.theme`): `theme.toml` (Nocturne tokens), `layout.toml`
+  (scale 1.25 by default, strip 44, bar 560/950/800/54, orbit 440x270, gaps 12, border 1,
+  rounding 8, cards, blur namespaces, exec-once) and `keys.toml` (binds, actions, dispatchers)
+  in /usr/share/eternity, overlaid by `~/.config/eternity/*.toml`, rendered to
+  `~/.config/eternity/generated/{hyprland.conf,Theme.qml,theme.json,gtk.css}`; `render --check`
+  validates. The Hyprland template: borders accent/neutral-800, gaps 6/12, rounding 8, blur only
+  behind `eternity-*` layers, animations with the design's curves (off under `motion.reduced`),
+  workspace swipe, no logo, binds from keys.toml + media keys.
+- **`eternity-daemon`** (`eternity.daemon`): JSON lines over `$XDG_RUNTIME_DIR/eternity/daemon.sock`
+  (0600, peer uid checked): state.get, cards.get, metrics.sample (1 s ticker to subscribers),
+  settings.get/set, ask.start/cancel/undo/show (streams ask.text/status/action/done), consent
+  (consent.request events; consent.reply with PIN verification; consent.ask for eternity-mcp),
+  session.lock / lock_info, pin.verify, hw.summary, launcher.index, claude.sessions / resume.
+  `eternity-mcp` and `eternity-ask --show` use it when the socket exists (GTK otherwise).
+- **The shell** (`/usr/share/eternity/shell`, Quickshell): `Theme` (reads theme.json),
+  `Geometry` (k = min(W/1920, H/1080)), `Daemon` (socket client, reconnects every 2 s),
+  `Mobius` (48-frame atlas 2048x1536 from `branding/render.py --atlas`, GPU sprite), `Wordmark`,
+  `Strip` (top layer, 44k exclusive: mark + wordmark, clock, live latency, AI, network, battery;
+  a dash when offline), `Presence` (background layer: vignette, core with four arcs/72 ticks/glow/mark,
+  orbit cards on 440x270 at -90/0/90/180 drifting 2.5 deg/s, caption at y 900, HUD frame 56,112
+  1808x812 with decoding label, sweeps on workspace change; with windows the cards hide and the
+  core moves to 1600,540 s 0.38), `Bar` (idle band on empty workspaces, full overlay with exclusive
+  keyboard when active: 800x54 bar at 560,950, placeholder, "Super Space" chip, accent ring,
+  thinking line 580, rule 620, streamed answer at 650 with caret, action cards + Undo, readout
+  top-right, `/help /undo /clear /settings /local /sessions /resume /model`, `>` shell lines),
+  `Consent` (440-wide dialog, PIN when needed, queued), `Lock` (ext-session-lock: mark 176 at
+  960,420, greeting 52/500 at 640, since-count, passphrase via PAM "login" or PIN via the daemon,
+  shake, 5 failures -> 30 s backoff, chips at bottom 88). `harness.qml` + `Dump.qml` drive the
+  offscreen test (scenarios strip, presence, bar, answer, consent, lock...).
+- **Deeper Claude Code**: `claude_code_allow` (Settings > Assistant check-boxes; `--allowedTools`),
+  `claude_code_model` sonnet/opus/haiku (`/model`), cost from `total_cost_usd` in the readout,
+  sessions recorded in `claude-sessions.json` (`/sessions`, `/resume N`), the terminal tile
+  "Claude Code (terminal)" labelled expert mode with the PreToolUse hook
+  `/usr/lib/eternity/claude-hook` (logs every call to the audit log, refuses sudo/pkexec/doas).
+- **Tests/chain**: `check_session` in the self-test; `run-qemu-visual.sh <iso> --session eternity`
+  shoots e-{splash,login,desktop,ask,answer,lock,unlocked,terminal,logs}.png (Super keys via QMP);
+  `tools/dev/chain-build13.sh` (build, XFCE visual, Eternity visual, smoke, Secure Boot, install,
+  fallback, BIOS, USB).
+
+Results are appended when the chain has run (it starts automatically after the resumed build 11
+chain; `/srv/eternity-build/out/build13-run.log`, ends with `BUILD13 DONE`).

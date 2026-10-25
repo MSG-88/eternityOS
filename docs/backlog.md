@@ -108,7 +108,8 @@ Recorded verbatim in substance; status marks as above. Plan: `docs/superpowers/s
   (`eternity-signin` runs the official browser login; Eternity stores no credentials), the Ask
   bar drives it headless (`claude -p`, stream-json) with Eternity's tools exposed over the
   `eternity` MCP server and every tool call gated by Eternity's consent dialog
-  (`--permission-prompt-tool`). ○ ChatGPT through the Codex CLI (ChatGPT sign-in) and Gemini
+  (`--permission-prompt-tool`). ◐ Build 13: allow-list, model picker, cost readout, sessions,
+  the audited terminal tile. ○ ChatGPT through the Codex CLI (ChatGPT sign-in) and Gemini
   CLI the same way. ○ Legal: Anthropic's terms say preinstalling Claude Code in a product
   needs their Commercial Terms; fine for the owner's own machine, to be settled before the
   OS is distributed (`docs/build-notes.md`, build 12).
@@ -122,7 +123,9 @@ Recorded verbatim in substance; status marks as above. Plan: `docs/superpowers/s
   "BIOS" meant: the boot menu, legacy boot, brightness/Fn keys, suspend?) and the
   `eternity-hw` output from the laptop to close the remaining gaps.
 - **UI/UX "a mere copy of Ubuntu".** Expected: a completely unique, high-tech look with its
-  own navigation. ○ Phase 3: leave the XFCE/X11 desktop for a Wayland session (Hyprland from
+  own navigation. ◐ Build 13 (slice 1): the Eternity session on Hyprland with the Quickshell shell
+  (strip, presence, Ask bar, consent, lock) at the design's geometry, 125 % scale, next to XFCE.
+  Remaining phase 3: leave the XFCE/X11 desktop for a Wayland session (Hyprland from
   trixie-backports) with an Eternity shell written in GTK 4 + layer-shell that renders the
   presence, the command bar, a status strip, the launcher, notifications and the lock/greeter
   screens exactly as in the Claude Design file (`docs/design/`), with animated transitions,
