@@ -91,7 +91,10 @@ class AskWindow(Gtk.Window):
         self.readout = label("", "readout")
         bar.pack_end(self.readout, False, False, 0)
         root.pack_start(bar, False, False, 0)
-        self.status = label(P.PROVIDER_LABELS[cfg.effective_provider()] + "  ·  Esc closes  ·  /help", "faint")
+        who = P.PROVIDER_LABELS[cfg.effective_provider()]
+        if cfg.effective_provider() == "claude_code":
+            who += " via Claude Code"
+        self.status = label(who + "  ·  Esc closes  ·  /help", "faint")
         root.pack_start(self.status, False, False, 0)
         self.position_bottom()
 
@@ -243,7 +246,7 @@ class AskWindow(Gtk.Window):
                 self.scroll_to_end()
             elif kind == "status":
                 self.readout.set_text(payload if len(payload) < 40 else payload[:40] + "…")
-                if "model" in payload or "key" in payload or "reach" in payload:
+                if "model" in payload or "key" in payload or "reach" in payload or "Claude Code" in payload or "signed in" in payload:
                     answer.set_text((state["text"] + "\n" if state["text"] else "") + payload)
             elif kind == "action":
                 self.add_action_card(payload)

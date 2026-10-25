@@ -9,3 +9,6 @@ pkg-config
 git
 libgomp1
 libopenblas0-pthread
+# Claude Code (Anthropic's apt repository, pinned in config/archives/claude-code.pref.chroot);
+# the user signs in with their own Claude account, Eternity stores nothing
+claude-code

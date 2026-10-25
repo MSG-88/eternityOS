@@ -1,0 +1,4 @@
+#!/bin/sh
+# Eternity's MCP server (stdio): Eternity actions + the consent gate for Claude Code's tools.
+# `eternity-mcp --tools` lists what it offers.
+exec /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity import mcp; sys.exit(mcp.main())' "$@"

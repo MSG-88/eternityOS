@@ -96,3 +96,46 @@ readout, actions, undo), ✔ launcher, ✔ files (search by meaning, on device),
 - **Platform implications:** a compositor/shell that can render the presence (likely a
   Wayland shell or a custom XFCE panel + overlay as a stepping stone), an NPU/GPU inference
   path for the latency targets, camera and microphone pipelines with on-device models.
+
+## 5. Owner's findings from testing the stick (2026-10-25 afternoon) and the next direction
+
+Recorded verbatim in substance; status marks as above. Plan: `docs/superpowers/specs/2026-10-25-eternity-08-phase3-design.md`.
+
+- **Agents are not integrated the way they should be.** Expected: not only API-key ingestion
+  but Claude Code itself inside the OS, working without an API key (the user's own Claude
+  subscription). ◐ Build 12: Claude Code ships in the image (Anthropic apt repository, pinned
+  version), first run and Settings offer "Claude (your Claude account)" with a sign-in button
+  (`eternity-signin` runs the official browser login; Eternity stores no credentials), the Ask
+  bar drives it headless (`claude -p`, stream-json) with Eternity's tools exposed over the
+  `eternity` MCP server and every tool call gated by Eternity's consent dialog
+  (`--permission-prompt-tool`). ○ ChatGPT through the Codex CLI (ChatGPT sign-in) and Gemini
+  CLI the same way. ○ Legal: Anthropic's terms say preinstalling Claude Code in a product
+  needs their Commercial Terms; fine for the owner's own machine, to be settled before the
+  OS is distributed (`docs/build-notes.md`, build 12).
+- **"BIOS and most of the drivers were not working."** ◐ Build 12: the laptop was inventoried
+  from Windows (MSI Alpha 15 A3DDK: Ryzen 7 3750H + Vega 10, Radeon RX 5500M, Realtek 8822CE
+  wifi + Bluetooth over USB, Killer E2600 ethernet, ALC235 audio, I2C touchpad, UVC webcam);
+  added `firmware-misc-nonfree`, BlueZ + PipeWire Bluetooth + Blueman, fwupd,
+  power-profiles-daemon, acpid, the rtw88 ASPM quirk; new `eternity-hw` report (devices,
+  drivers, missing firmware, radios, sound, power) also available to the assistant as
+  `hardware_report` and checked by the self-test. ○ Needs the owner's exact symptoms (what
+  "BIOS" meant: the boot menu, legacy boot, brightness/Fn keys, suspend?) and the
+  `eternity-hw` output from the laptop to close the remaining gaps.
+- **UI/UX "a mere copy of Ubuntu".** Expected: a completely unique, high-tech look with its
+  own navigation. ○ Phase 3: leave the XFCE/X11 desktop for a Wayland session (Hyprland from
+  trixie-backports) with an Eternity shell written in GTK 4 + layer-shell that renders the
+  presence, the command bar, a status strip, the launcher, notifications and the lock/greeter
+  screens exactly as in the Claude Design file (`docs/design/`), with animated transitions,
+  blur, rounded surfaces and keyboard-first navigation; XFCE stays selectable as "Classic"
+  until the new session passes every test, then goes.
+- **Depth and precision per section, AI integration and security as the key, enterprise
+  grade.** ○ Phase 3 plan item per section (boot, unlock, home, ask, launcher, files,
+  monitor, settings, installer, updates, devices, network, power, printing, accounts,
+  backup) each with a test and a screenshot before it counts as done.
+- **Innovation-friendly, installed and USB-based, highly customisable (owner message,
+  2026-10-25 13:40).** ○ USB persistence (a `persistence` partition the stick writer and the
+  OS can create, so the USB OS keeps settings, files and the sign-in), ○ dev toolchain in the
+  image (Claude Code, Python, Node, git, podman, VS Code or equivalent), ○ customisation as a
+  first-class system: themes, layouts, key maps and the presence's behaviour in declarative
+  files under `~/.config/eternity` that Settings, the assistant and the user can all edit,
+  with presets and live reload.

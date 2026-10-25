@@ -12,7 +12,9 @@ import tempfile
 from dataclasses import asdict, dataclass, field, fields
 from typing import Dict, List, Optional
 
-PROVIDERS = ("local", "anthropic", "openai")
+PROVIDERS = ("local", "claude_code", "anthropic", "openai")
+# Providers that bring their own sign-in (no API key in our keyring)
+SIGNIN_PROVIDERS = ("claude_code",)
 VERBOSITY = ("brief", "normal", "detailed")
 VOICES = ("off", "calm", "bright")
 UNLOCK_METHODS = ("passphrase", "pin", "face", "voice")
@@ -33,7 +35,8 @@ def state_dir() -> str:
 @dataclass
 class Settings:
     name: str = ""                       # how Eternity addresses the user
-    provider: str = "local"              # local | anthropic | openai
+    provider: str = "local"              # local | claude_code | anthropic | openai
+    claude_code_model: str = "sonnet"    # alias passed to `claude --model`
     anthropic_model: str = "claude-sonnet-5-5"
     openai_model: str = "gpt-5.1"
     local_model: str = "auto"            # auto | default | small

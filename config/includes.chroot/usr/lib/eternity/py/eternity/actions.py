@@ -57,6 +57,16 @@ class Audit:
         except OSError:
             pass
 
+    def last_undoable(self) -> Optional[dict]:
+        """The newest executed action that has an undo token and was not undone yet."""
+        undone = set()
+        for e in reversed(self.tail(200)):
+            if e.get("decision") == "undo" and e.get("of"):
+                undone.add(e["of"])
+            elif e.get("undoable") and e.get("undo_token") is not None and e.get("id") not in undone:
+                return e
+        return None
+
     def tail(self, n: int = 20) -> List[dict]:
         try:
             with open(self.path, encoding="utf-8") as f:
@@ -312,6 +322,18 @@ def u_set_setting(args: dict, result: ActionResult) -> str:
     return f"{tok['key']} restored to {tok['before']}"
 
 
+def t_hardware_report(args: dict) -> ActionResult:
+    from . import hw
+    inv = hw.inventory()
+    probs = hw.problems(inv)
+    summ = hw.summary(inv)
+    head = "no hardware problems found" if summ["ok"] else f"{summ['bad']} problem(s), {summ['warn']} warning(s)"
+    data = {"report": hw.report(inv), "problems": [f"{s}: {m}" for s, m in probs],
+            "network": inv["network"], "bluetooth": inv["bluetooth"], "graphics": inv["graphics"], "sound": inv["sound"],
+            "power": inv["power"], "firmware": inv["firmware"], "platform": inv["platform"]}
+    return ActionResult(True, head, data)
+
+
 def default_tools() -> List[Tool]:
     obj = lambda props, req=(): {"type": "object", "properties": props, "required": list(req)}  # noqa: E731
     return [
@@ -322,6 +344,8 @@ def default_tools() -> List[Tool]:
              obj({"pattern": {"type": "string"}}, ["pattern"]), t_find_files, RISK_READ),
         Tool("search_files_by_meaning", "Find the user's files by what they are about (photos from a trip, the spec about X, invoices from March); uses the on-device index.",
              obj({"query": {"type": "string"}, "count": {"type": "integer"}}, ["query"]), t_search_meaning, RISK_READ),
+        Tool("hardware_report", "Devices of this computer with their drivers, missing firmware, wifi/Bluetooth/sound/display/battery state and detected problems. Use for 'X is not working'.",
+             obj({}), t_hardware_report, RISK_READ),
         Tool("open_app", "Open an installed application by name (for example 'firefox', 'files', 'terminal').",
              obj({"name": {"type": "string"}}, ["name"]), t_open_app, RISK_CHANGE),
         Tool("open_url", "Open a web link in the browser.", obj({"url": {"type": "string"}}, ["url"]), t_open_url, RISK_CHANGE),
@@ -345,6 +369,7 @@ class Executed:
     args: dict
     result: ActionResult
     undone: bool = False
+    id: str = ""
 
 
 class ActionBroker:
@@ -384,9 +409,12 @@ class ActionBroker:
             res = tool.run(args)
         except Exception as e:  # a tool must never take the assistant down
             res = ActionResult(False, f"{type(e).__name__}: {e}")
-        self.history.append(Executed(tool, args, res))
-        self.audit.write(tool=name, args=args, decision=decision, ok=res.ok, summary=res.summary,
-                         undoable=bool(tool.undo and res.ok and res.undo_token is not None))
+        entry_id = f"{int(time.time() * 1000)}-{os.getpid()}-{len(self.history)}"
+        self.history.append(Executed(tool, args, res, id=entry_id))
+        undoable = bool(tool.undo and res.ok and res.undo_token is not None)
+        self.audit.write(id=entry_id, tool=name, args=args, decision=decision,
+                         ok=res.ok, summary=res.summary, undoable=undoable,
+                         undo_token=res.undo_token if undoable else None)
         return res
 
     def undoable(self) -> Optional[Executed]:
@@ -398,11 +426,62 @@ class ActionBroker:
     def undo_last(self) -> str:
         ex = self.undoable()
         if not ex:
-            return "nothing to undo"
+            return self.undo_from_log()
         msg = ex.tool.undo(ex.args, ex.result)
         ex.undone = True
-        self.audit.write(tool=ex.tool.name, args=ex.args, decision="undo", ok=True, summary=msg)
+        self.audit.write(tool=ex.tool.name, args=ex.args, decision="undo", of=ex.id, ok=True, summary=msg)
         return msg
+
+    def undo_from_log(self) -> str:
+        """Undo the newest undoable action recorded in the audit log, whichever process ran it
+        (the MCP server used by Claude Code runs actions outside the Ask window)."""
+        e = self.audit.last_undoable()
+        if not e:
+            return "nothing to undo"
+        tool = self.tools.get(e.get("tool", ""))
+        if not tool or not tool.undo:
+            return f"{e.get('tool')} cannot be undone"
+        res = ActionResult(True, e.get("summary", ""), undo_token=e.get("undo_token"))
+        try:
+            msg = tool.undo(e.get("args") or {}, res)
+        except Exception as ex:  # noqa: BLE001
+            msg = f"undo failed: {type(ex).__name__}: {ex}"
+        self.audit.write(tool=tool.name, args=e.get("args") or {}, decision="undo", of=e.get("id"), ok=True, summary=msg)
+        return msg
+
+
+# Claude Code's own tools, classified like ours so the same consent rules apply to them.
+BUILTIN_RISK = {"Read": RISK_READ, "Glob": RISK_READ, "Grep": RISK_READ, "LS": RISK_READ, "WebSearch": RISK_READ,
+                "WebFetch": RISK_READ, "TodoWrite": RISK_READ, "Task": RISK_READ, "NotebookRead": RISK_READ,
+                "Edit": RISK_CHANGE, "Write": RISK_CHANGE, "MultiEdit": RISK_CHANGE, "NotebookEdit": RISK_CHANGE,
+                "Bash": RISK_DANGEROUS, "KillShell": RISK_DANGEROUS}
+_ESCALATES = ("sudo", "pkexec", "su -", "su root", "doas")
+
+
+def builtin_tool(name: str, args: dict) -> Tool:
+    """A Tool record for one of Claude Code's built-in tools, so the consent dialog, the audit
+    log and the trust rules treat it exactly like an Eternity action."""
+    risk = BUILTIN_RISK.get(name, RISK_DANGEROUS)
+    if name == "Bash":
+        desc = f"Run a shell command: {args.get('command', '')}"
+    elif name in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
+        desc = f"{'Create or overwrite' if name == 'Write' else 'Edit'} the file {args.get('file_path', args.get('notebook_path', '?'))}"
+    elif name == "Read":
+        desc = f"Read the file {args.get('file_path', '?')}"
+    elif name in ("Glob", "Grep"):
+        desc = f"Search files for {args.get('pattern', '?')}"
+    elif name in ("WebFetch", "WebSearch"):
+        desc = f"Fetch from the web: {args.get('url') or args.get('query', '?')}"
+    else:
+        desc = f"Use the {name} tool"
+    return Tool(name, desc, {"type": "object", "properties": {}}, lambda a: ActionResult(False, "not run here"), risk)
+
+
+def escalates_privileges(name: str, args: dict) -> bool:
+    if name != "Bash":
+        return False
+    cmd = f" {str(args.get('command', ''))} "
+    return any(f" {w}" in cmd or cmd.strip().startswith(w) for w in _ESCALATES)
 
 
 def describe_call(tool: Tool, args: dict) -> str:

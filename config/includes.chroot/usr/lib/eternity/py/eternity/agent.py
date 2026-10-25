@@ -42,10 +42,13 @@ def os_knowledge() -> str:
     desktop = os.environ.get("XDG_CURRENT_DESKTOP", "XFCE")
     live = os.path.exists("/run/live/medium")
     bits.append(f"desktop {desktop}; {'live session from the USB stick (nothing persists)' if live else 'installed system'}")
-    tools = [t for t in ("eternity-chat", "eternity-ai", "eternity-install", "eternity-find", "firefox", "thunar", "xfce4-terminal", "mousepad")
+    tools = [t for t in ("eternity-chat", "eternity-ai", "eternity-install", "eternity-find", "eternity-hw", "claude", "firefox", "thunar", "xfce4-terminal", "mousepad")
              if shutil.which(t)]
     bits.append("installed Eternity tools and apps: " + ", ".join(tools))
     bits.append("local AI: llama.cpp with Qwen3.5 GGUF models in /opt/eternity/models; Python ML venv /opt/eternity/venv")
+    if shutil.which("claude"):
+        bits.append("Claude Code is installed (the user may sign in with their own Claude account; Eternity's tools reach it through the eternity MCP server)")
+    bits.append("hardware: the hardware_report tool (eternity-hw) lists devices, drivers, missing firmware and radio/power state; use it for any question about wifi, Bluetooth, sound, display, battery or 'X is not working'")
     bits.append("settings: ~/.config/eternity/settings.json; action log ~/.local/state/eternity/actions.log; "
                 "installer: 'Install Eternity 08' (Calamares) in live sessions")
     return "\n".join("- " + b for b in bits)
@@ -88,6 +91,30 @@ class Agent:
         tools = self.broker.schemas() if self.cfg.agent_mode else None
         system = system_prompt(self.cfg)
         last_metrics = None
+        try:
+            provider = self.provider
+        except P.ProviderError as e:
+            yield ("status", str(e))
+            yield ("done", P.Metrics(provider=self.cfg.effective_provider()))
+            return
+        if getattr(provider, "agentic", False):
+            # the runtime (Claude Code) runs its own tool loop; consent happens in eternity-mcp
+            text = ""
+            try:
+                for kind, payload in provider.stream(self.history, system=system):
+                    if kind == "text":
+                        text += payload
+                    elif kind == "done":
+                        last_metrics = payload
+                    yield (kind, payload)
+            except P.ProviderError as e:
+                yield ("status", str(e))
+                yield ("done", last_metrics or P.Metrics(provider=self.cfg.effective_provider()))
+                return
+            self.history.append({"role": "assistant", "content": text})
+            if last_metrics is None:
+                yield ("done", P.Metrics(provider=self.cfg.effective_provider()))
+            return
         for _round in range(MAX_TOOL_ROUNDS):
             text, calls = "", []
             try:

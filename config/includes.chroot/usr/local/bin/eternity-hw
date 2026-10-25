@@ -1,0 +1,3 @@
+#!/bin/sh
+# Hardware report: devices, drivers, missing firmware, radios, sound, power. `--json`, `--save`.
+exec /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity import hw; sys.exit(hw.main())' "$@"

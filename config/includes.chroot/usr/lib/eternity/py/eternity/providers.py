@@ -373,7 +373,171 @@ class AnthropicProvider(Provider):
         yield ("done", m)
 
 
-PROVIDER_LABELS = {"local": "Eternity (on this device)", "anthropic": "Claude (Anthropic)", "openai": "ChatGPT (OpenAI)"}
+class ClaudeCodeProvider(Provider):
+    """Claude through the Claude Code runtime that ships in the image, signed in with the
+    user's own Claude account (no API key, nothing stored by Eternity). It is agentic: Claude
+    Code runs its own tool loop; Eternity's tools reach it through the `eternity` MCP server
+    and every tool call that is not pre-allowed goes through Eternity's consent dialog
+    (`--permission-prompt-tool mcp__eternity__approve`). Streams the same events as the other
+    providers plus ("action", {...}) for each tool call it ran.
+    """
+
+    name = "claude_code"
+    on_device = False
+    agentic = True
+    READ_ONLY_BUILTINS = ("Read", "Glob", "Grep", "WebSearch", "WebFetch", "TodoWrite")
+
+    def __init__(self, model: str = "sonnet", cfg: Optional[S.Settings] = None, binary: Optional[str] = None,
+                 mcp_command: Optional[str] = None, max_turns: int = 12):
+        super().__init__(model or "sonnet")
+        self.cfg = cfg or S.load()
+        self.binary = binary or os.environ.get("ETERNITY_CLAUDE_BIN") or shutil.which("claude")
+        self.mcp_command = mcp_command or os.environ.get("ETERNITY_MCP_BIN") or shutil.which("eternity-mcp") or "eternity-mcp"
+        self.max_turns = max_turns
+        self.session_id: Optional[str] = None
+
+    def allowed_tools(self) -> List[str]:
+        if self.cfg.trust_level < 1:
+            return []
+        own = [f"mcp__eternity__{t}" for t in ("system_info", "list_recent_files", "find_files", "search_files_by_meaning", "hardware_report")]
+        return list(self.READ_ONLY_BUILTINS) + own
+
+    def command(self, prompt: str, system: Optional[str]) -> List[str]:
+        cmd = [self.binary or "claude", "-p", prompt, "--output-format", "stream-json", "--verbose", "--include-partial-messages",
+               "--model", self.model, "--max-turns", str(self.max_turns),
+               "--mcp-config", json.dumps({"mcpServers": {"eternity": {"command": self.mcp_command, "args": []}}}),
+               "--strict-mcp-config", "--permission-prompt-tool", "mcp__eternity__approve"]
+        if system:
+            cmd += ["--append-system-prompt", system]
+        allowed = self.allowed_tools()
+        if allowed:
+            cmd += ["--allowedTools", ",".join(allowed)]
+        if self.session_id:
+            cmd += ["--resume", self.session_id]
+        return cmd
+
+    @staticmethod
+    def env() -> Dict[str, str]:
+        env = dict(os.environ)
+        for k in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"):
+            env.pop(k, None)            # the user's own sign-in decides, never a key from the environment
+        env.update({"DISABLE_UPDATES": "1", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1", "DISABLE_TELEMETRY": "1"})
+        return env
+
+    def stream(self, messages, system=None, tools=None, max_tokens=1024):
+        if not self.binary:
+            raise ProviderError("Claude Code is not installed on this system")
+        prompt = ""
+        for m in reversed(messages):
+            if m.get("role") == "user" and isinstance(m.get("content"), str):
+                prompt = m["content"]
+                break
+        if not prompt:
+            raise ProviderError("nothing to ask")
+        t0 = time.monotonic()
+        m = Metrics(provider=self.name, model=self.model, on_device=False)
+        chars = 0
+        pending: Dict[str, dict] = {}
+        got_result = False
+        try:
+            proc = subprocess.Popen(self.command(prompt, system), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, text=True, env=self.env(), cwd=os.path.expanduser("~"))
+        except OSError as e:
+            raise ProviderError(f"cannot start Claude Code: {e}") from None
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            kind = ev.get("type")
+            if kind == "system" and ev.get("subtype") == "init":
+                self.session_id = ev.get("session_id") or self.session_id
+            elif kind == "stream_event":
+                e = ev.get("event") or {}
+                d = e.get("delta") or {}
+                if e.get("type") == "content_block_delta" and d.get("type") == "text_delta" and d.get("text"):
+                    if m.first_token_ms is None:
+                        m.first_token_ms = int((time.monotonic() - t0) * 1000)
+                    chars += len(d["text"])
+                    yield ("text", d["text"])
+            elif kind == "assistant":
+                for block in (ev.get("message") or {}).get("content") or []:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        name = str(block.get("name", "")).replace("mcp__eternity__", "")
+                        pending[block.get("id", "")] = {"name": name, "args": block.get("input") or {}}
+                        if m.first_token_ms is None:
+                            m.first_token_ms = int((time.monotonic() - t0) * 1000)
+                        yield ("status", f"{name} …")
+            elif kind == "user":
+                for block in (ev.get("message") or {}).get("content") or []:
+                    if isinstance(block, dict) and block.get("type") == "tool_result":
+                        call = pending.pop(block.get("tool_use_id", ""), {"name": "tool", "args": {}})
+                        content = block.get("content")
+                        if isinstance(content, list):
+                            content = " ".join(str(c.get("text", "")) for c in content if isinstance(c, dict))
+                        summary = str(content or "").strip().splitlines()[0][:200] if content else "done"
+                        ok = not block.get("is_error", False)
+                        yield ("action", {"name": call["name"], "args": call["args"], "ok": ok, "summary": summary,
+                                          "undoable": ok and call["name"] in ("write_note", "set_volume", "set_setting")})
+            elif kind == "result":
+                got_result = True
+                self.session_id = ev.get("session_id") or self.session_id
+                usage = ev.get("usage") or {}
+                m.tokens = int(usage.get("output_tokens") or 0)
+                m.total_ms = int(ev.get("duration_ms") or (time.monotonic() - t0) * 1000)
+                if ev.get("is_error"):
+                    errs = ev.get("errors") or [ev.get("result") or ev.get("subtype") or "error"]
+                    raise ProviderError("Claude Code: " + "; ".join(str(x) for x in errs)[:300])
+        rc = proc.wait(timeout=30)
+        if not got_result:
+            err = (proc.stderr.read() if proc.stderr else "").strip().splitlines()
+            tail = err[-1] if err else f"exit {rc}"
+            if "login" in tail.lower() or "auth" in tail.lower() or "credential" in tail.lower():
+                raise ProviderError("Claude Code is not signed in: Settings > Eternity > Sign in with your Claude account")
+            raise ProviderError(f"Claude Code stopped: {tail[:300]}")
+        if not m.total_ms:
+            m.total_ms = int((time.monotonic() - t0) * 1000)
+        if not m.tokens:
+            m.tokens = max(1, chars // 4)
+        gen_ms = max(1, m.total_ms - (m.first_token_ms or 0))
+        m.tokens_per_s = m.tokens / (gen_ms / 1000)
+        yield ("done", m)
+
+
+def claude_code_status(binary: Optional[str] = None, timeout: float = 8.0) -> dict:
+    """{"installed": bool, "signed_in": bool, "detail": str, "version": str} from `claude auth status`.
+    Never raises; never touches the credentials themselves."""
+    binary = binary or os.environ.get("ETERNITY_CLAUDE_BIN") or shutil.which("claude")
+    if not binary or not (os.path.isfile(binary) or shutil.which(binary)):
+        return {"installed": False, "signed_in": False, "detail": "Claude Code is not installed", "version": ""}
+    out: dict = {"installed": True, "signed_in": False, "detail": "", "version": ""}
+    try:
+        r = subprocess.run([binary, "--version"], capture_output=True, text=True, timeout=timeout, env=ClaudeCodeProvider.env(), check=False)
+        out["version"] = (r.stdout or "").strip().split(" ")[0]
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    try:
+        r = subprocess.run([binary, "auth", "status"], capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL,
+                           env=ClaudeCodeProvider.env(), check=False)
+        info = json.loads(r.stdout) if r.stdout.strip().startswith("{") else {}
+        out["signed_in"] = bool(info.get("loggedIn")) if info else r.returncode == 0
+        if out["signed_in"]:
+            who = info.get("email") or info.get("orgName") or "your Claude account"
+            plan = info.get("subscriptionType")
+            out["detail"] = f"signed in as {who}" + (f" ({plan})" if plan else "")
+        else:
+            out["detail"] = "not signed in"
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        out["detail"] = "not signed in"
+    return out
+
+
+PROVIDER_LABELS = {"local": "Eternity (on this device)", "claude_code": "Claude (your Claude account)",
+                   "anthropic": "Claude (Anthropic API key)", "openai": "ChatGPT (OpenAI API key)"}
 PROVIDER_KEY_URLS = {"anthropic": "https://console.anthropic.com/settings/keys", "openai": "https://platform.openai.com/api-keys"}
 
 
@@ -382,6 +546,8 @@ def get_provider(cfg: S.Settings, secrets: Optional[S.SecretStore] = None) -> Pr
     choice = cfg.effective_provider()
     if choice == "local":
         return LocalProvider(cfg.local_model)
+    if choice == "claude_code":
+        return ClaudeCodeProvider(cfg.claude_code_model, cfg=cfg)
     secrets = secrets or S.SecretStore()
     key = secrets.get(choice)
     if not key:

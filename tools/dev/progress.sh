@@ -5,7 +5,7 @@
 # `tools/dev/progress.sh --phase "name" "state"` records the state of a work phase (todo/doing/done/blocked).
 cd "$(dirname "$0")/../.." || exit 1
 D=tests/out/live; mkdir -p "$D"; LOG=$D/progress.log; PH=$D/phases.tsv
-ts() { TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M IST'; }
+ts() { date -u -d '5 hour 30 min' '+%Y-%m-%d %H:%M IST'; }  # Git Bash has no zoneinfo: TZ= gave UTC labelled IST
 if [ "${1:-}" = --phase ]; then
     name=$2; state=$3; touch "$PH"
     grep -vF "	$name	" "$PH" > "$PH.tmp" 2>/dev/null; printf '%s\t%s\t%s\n' "$(ts)" "$name" "$state" >> "$PH.tmp"; mv "$PH.tmp" "$PH"

@@ -1,0 +1,9 @@
+#!/bin/sh
+# Sign in to Claude Code with the user's own Claude account, in a terminal window (browser flow;
+# the link can be opened on another device and the code pasted back). Nothing is stored by Eternity.
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+export DISABLE_UPDATES=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 DISABLE_TELEMETRY=1
+if [ -n "$DISPLAY$WAYLAND_DISPLAY" ] && command -v xfce4-terminal >/dev/null 2>&1 && [ "$1" != "--here" ]; then
+    exec xfce4-terminal --title "Sign in to Claude" --geometry 100x28 -e "sh -c 'claude auth login; echo; echo Done. You can close this window.; sleep 4'"
+fi
+exec claude auth login

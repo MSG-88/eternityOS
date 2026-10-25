@@ -1,0 +1,14 @@
+#!/bin/sh
+# Hardware stacks on by default: Bluetooth (BlueZ), power profiles, ACPI events, firmware updates
+# (fwupd is socket/timer activated, no listener). Driver quirks live in /etc/modprobe.d/eternity-hardware.conf.
+set -e
+systemctl enable bluetooth.service 2>/dev/null || true
+systemctl enable power-profiles-daemon.service 2>/dev/null || true
+systemctl enable acpid.service 2>/dev/null || true
+# PipeWire's Bluetooth plugin needs the user to be able to reach bluetoothd: the default policy allows it.
+# Blueman only runs when the user opens it (its autostart applet would add a tray icon we do not want).
+rm -f /etc/xdg/autostart/blueman.desktop
+chmod 755 /usr/local/bin/eternity-hw /usr/local/bin/eternity-mcp /usr/local/bin/eternity-signin
+# Claude Code: pinned package from Anthropic's apt repository; policy file in /etc/claude-code
+command -v claude >/dev/null 2>&1 && claude --version || echo "WARNING: claude-code not installed"
+[ -s /etc/claude-code/managed-settings.json ] && python3 -c 'import json,sys; json.load(open("/etc/claude-code/managed-settings.json"))'

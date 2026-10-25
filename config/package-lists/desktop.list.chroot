@@ -55,3 +55,7 @@ libsecret-tools
 brightnessctl
 # Plymouth Image.Text needs a font the initramfs hook ships (DejaVu); without it the boot log is boxes
 fonts-dejavu-core
+# Bluetooth stack (the MSI Alpha 15 adapter is a Realtek 8822CE over USB)
+bluez
+libspa-0.2-bluetooth
+blueman

@@ -457,3 +457,71 @@ runners send Esc, no desktop launcher copies, install-wait pattern fixed.
   Windows re-enumerated, PnP re-plug, full read-back compared with the ISO).
 - Install, boot-disk, boot-fallback, smoke, Secure Boot, BIOS and USB runs follow in the
   chain (`tools/dev/chain-build11.sh`); results appended when done.
+
+### Build 11 chain, resumed (2026-10-25 13:35)
+
+The laptop shut down unexpectedly during the night (Windows event 6008, no clean shutdown;
+last sign of life from the install VM 06:41, Windows back at 13:22). The chain died with WSL
+at the install step (Calamares at unpackfs, 5 %). Resumed with `tools/dev/chain-build11-resume.sh`
+(install, boot-disk, boot-fallback, smoke, Secure Boot, BIOS, USB), which then waits for
+`out/build12.go` and runs `tools/dev/chain-build12.sh`. `tools/dev/progress.sh` timestamps were
+UTC labelled IST under Git Bash (no zoneinfo): fixed.
+
+### Build 12 content (committed 2026-10-25 afternoon, owner's testing feedback, backlog section 5)
+
+- **Splash font**: `fonts-dejavu-core` for Plymouth's `Image.Text`.
+- **Hardware** (owner: "BIOS and most of the drivers were not working"): inventory of the
+  laptop taken from Windows (MSI Alpha 15 A3DDK: Ryzen 7 3750H + Vega 10, Radeon RX 5500M,
+  Realtek RTL8822CE wifi, Realtek Bluetooth over USB 13d3:3549, Killer E2600 = RTL8125
+  ethernet, Realtek ALC235 + AMD HDMI audio, I2C HID touchpad, Chicony UVC webcam, SN730
+  NVMe, TPM 2.0, BIOS E16U6AMS.111). The image had the firmware packages for all of it but
+  **no Bluetooth stack at all** (bluez was missing) and no `firmware-misc-nonfree`. Added:
+  bluez, libspa-0.2-bluetooth, blueman (no tray autostart), firmware-misc-nonfree,
+  firmware-sof-signed, fwupd, power-profiles-daemon, acpid, pciutils, usbutils, rfkill,
+  tpm2-tools, v4l-utils; `/etc/modprobe.d/eternity-hardware.conf` (rtw88 ASPM off, btusb
+  autosuspend off); hook `0450-hardware` enables bluetooth / power-profiles-daemon / acpid.
+  New `eternity-hw` (`eternity.hw`): PCI/USB devices with the bound driver, firmware files
+  the kernel failed to load, NetworkManager/rfkill, BlueZ, DRM, ALSA/PipeWire, inputs,
+  cameras, battery/backlight/suspend, platform (UEFI, Secure Boot, TPM, microcode); a
+  readable report, `--json`, `--save`; problems rated bad/warn. Exposed to the assistant as
+  the read-only tool `hardware_report` and to the self-test as `check_hardware` (fails on a
+  device class without a driver, reports the rest as INFO lines). Tests: `tests/host/test_hw.py`
+  (synthetic sysfs of the laptop with and without the wifi driver, parser, real host).
+  Still needed from the owner: what exactly failed on the stick (the report from
+  `eternity-hw` on the laptop answers most of it).
+- **Claude Code inside the OS, no API key** (owner: "claude code to be integrated within the
+  OS which will work without api key"): the `claude-code` package from Anthropic's signed apt
+  repository (`config/archives/claude-code.*`, pinned 2.1.308-1, key fingerprint
+  31DD DE24 DDFA B679 F42D 7BD2 BAA9 29FF 1A7E CACE) is in the image; policy
+  `/etc/claude-code/managed-settings.json` + `/etc/environment.d/60-eternity-claude-code.conf`
+  (no self-updates, no non-essential traffic, no telemetry). New provider
+  `claude_code` ("Claude (your Claude account)"): the Ask bar runs
+  `claude -p --output-format stream-json --verbose --include-partial-messages --model <alias>
+  --mcp-config {eternity: eternity-mcp} --strict-mcp-config --permission-prompt-tool
+  mcp__eternity__approve [--allowedTools read-only set at trust 1] [--resume <session>]`,
+  strips any API key from the environment, streams text deltas, shows each tool call as an
+  action card, keeps the session id for follow-ups. New `eternity-mcp` (`eternity.mcp`, stdio
+  MCP server, stdlib only): the Eternity actions as MCP tools through the same ActionBroker
+  (consent dialog, audit log, undo) plus `approve`, the permission prompt for Claude Code's
+  own tools (Bash/Edit/Write/... classified read/change/dangerous like ours; sudo/pkexec/doas
+  always denied; PIN for dangerous ones when chosen; every decision logged with
+  `via: claude-code`). Undo now works across processes from the audit log (`undo_token`
+  recorded, `undo_from_log`). Sign-in: first run and Settings offer the provider only when
+  `claude` is installed, show `claude auth status` (installed / signed in as …) and a
+  "Sign in with your Claude account" button that runs `eternity-signin` (`claude auth login`
+  in a terminal; the link can be finished on another device). Eternity never sees or stores
+  the credentials (`~/.claude/.credentials.json`, mode 600, Claude Code's own). Contract
+  verified on 2026-10-25 against Claude Code 2.1.302 on the owner's Windows machine with a
+  probe MCP server: `approve` receives `{tool_name, input, tool_use_id}` and returns
+  `{"behavior":"allow","updatedInput":…}` or `{"behavior":"deny","message":…}` as text;
+  stream-json shapes recorded in `tests/host/test_claude_code.py` (fake `claude`). Tests:
+  `test_claude_code.py`, `test_mcp.py` (protocol, consent, escalation denial, undo across
+  processes, CLI policy mode); smoke `check_claude_code`.
+  Terms: Anthropic's legal page allows an end user to sign in to the unmodified binary with
+  their own subscription, including on a platform that hosts it, but says preinstalling
+  Claude Code in a product needs their Commercial Terms, and that products must not
+  collect or intermediate claude.ai credentials (we do not; no `setup-token` path on
+  purpose). Fine for the owner's own machines; to settle before Eternity is distributed.
+  The product never uses "Claude Code" or Anthropic marks in a feature name (the option is
+  "Claude (your Claude account)", described as "runs Claude Code").
+- Host tests: 61 unit tests + UI smoke under Xvfb PASS (2026-10-25 15:20).

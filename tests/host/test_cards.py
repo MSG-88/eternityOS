@@ -60,7 +60,7 @@ class CardsTest(unittest.TestCase):
         self.assertIn("41 ms", st["readout"])
         self.assertIn("170 tok/s", st["readout"])
         st = C.ai_status(S.Settings(provider="anthropic", on_device_only=False))
-        self.assertEqual(st["label"], "Claude (Anthropic)")
+        self.assertEqual(st["label"], "Claude (Anthropic API key)")
 
     def test_actions_today_counts_only_executed(self):
         from eternity import actions as A

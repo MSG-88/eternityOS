@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 
-from gi.repository import Gtk  # noqa: E402
+from gi.repository import GLib, Gtk  # noqa: E402
 
 from .. import actions as A
 from .. import providers as P
@@ -50,11 +50,19 @@ class SettingsWindow(Gtk.Window):
         # --- assistant
         root.pack_start(self.section("ASSISTANT"), False, False, 6)
         self.prov = Gtk.ComboBoxText()
-        for k in ("local", "anthropic", "openai"):
+        self.cc = P.claude_code_status()
+        for k in S.PROVIDERS:
+            if k == "claude_code" and not self.cc["installed"]:
+                continue
             self.prov.append(k, P.PROVIDER_LABELS[k])
         self.prov.set_active_id(cfg.provider)
         self.prov.connect("changed", self.on_provider)
-        root.pack_start(Row("Who answers", "The on-device model works offline; Claude and ChatGPT need your own API key.", self.prov), False, False, 0)
+        root.pack_start(Row("Who answers", "The on-device model works offline. Your Claude account runs Claude Code, signed in by you. API-key providers need your own key.", self.prov), False, False, 0)
+        self.signin_status = label("", "faint", wrap=True)
+        self.signin_btn = button("Sign in with your Claude account", "primary", on_click=self.on_signin)
+        self.signin_row = Row("Claude account", "Eternity keeps no credentials: Claude Code holds the sign-in in your home folder. Every action still asks you first.", self.signin_btn)
+        root.pack_start(self.signin_row, False, False, 0)
+        root.pack_start(self.signin_status, False, False, 0)
         self.ondevice = Gtk.Switch(active=cfg.on_device_only)
         self.ondevice.connect("notify::active", self.on_ondevice)
         root.pack_start(Row("Keep everything on this device", "Refuses cloud assistants even if one is selected; nothing leaves the machine.", self.ondevice), False, False, 0)
@@ -146,15 +154,40 @@ class SettingsWindow(Gtk.Window):
             self.cfg.on_device_only = False
             self.ondevice.set_active(False)
         S.save(self.cfg)
-        cloud = prov != "local"
+        keyed = prov not in ("local",) + S.SIGNIN_PROVIDERS
+        signin = prov in S.SIGNIN_PROVIDERS
         for w in (self.key_row, self.key_actions):
-            w.set_visible(cloud); w.set_no_show_all(not cloud)
-            if cloud:
+            w.set_visible(keyed); w.set_no_show_all(not keyed)
+            if keyed:
                 w.show_all()
-        if cloud:
+        for w in (self.signin_row, self.signin_status):
+            w.set_visible(signin); w.set_no_show_all(not signin)
+            if signin:
+                w.show_all()
+        if keyed:
             self.key_link.set_uri(P.PROVIDER_KEY_URLS[prov])
             self.key_entry.set_placeholder_text("A key is stored" if self.store.get(prov) else "No key yet")
+        if signin:
+            self.refresh_signin()
         self.note.set_text(f"Changes apply instantly. Assistant: {P.PROVIDER_LABELS[self.cfg.effective_provider()]}.")
+
+    def refresh_signin(self, *_):
+        self.cc = P.claude_code_status()
+        ok = self.cc["signed_in"]
+        self.signin_status.set_text(("Claude Code " + (self.cc["version"] or "") + ": " + self.cc["detail"]).strip())
+        self.signin_btn.set_label("Signed in" if ok else "Sign in with your Claude account")
+        self.signin_btn.set_sensitive(not ok)
+
+    def on_signin(self):
+        import subprocess
+        subprocess.Popen(["eternity-signin"])
+        GLib.timeout_add_seconds(5, self._poll_signin, 0)
+
+    def _poll_signin(self, n):
+        self.refresh_signin()
+        if not self.cc["signed_in"] and n < 60:
+            GLib.timeout_add_seconds(5, self._poll_signin, n + 1)
+        return False
 
     def on_ondevice(self, sw, _p):
         self.cfg.on_device_only = sw.get_active()

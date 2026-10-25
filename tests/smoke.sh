@@ -100,12 +100,12 @@ check_phase2() {
     python3 - <<'PY' || { echo "eternity python package does not import"; return 1; }
 import sys
 sys.path.insert(0, "/usr/lib/eternity/py")
-import eternity.settings, eternity.providers, eternity.actions, eternity.agent, eternity.find, eternity.cards, eternity.launcher_index  # noqa
+import eternity.settings, eternity.providers, eternity.actions, eternity.agent, eternity.find, eternity.cards, eternity.launcher_index, eternity.hw, eternity.mcp  # noqa
 import gi
 gi.require_version("Gtk", "3.0")
 PY
     local b
-    for b in eternity-firstrun eternity-ask eternity-shell eternity-launcher eternity-find eternity-monitor eternity-settings; do
+    for b in eternity-firstrun eternity-ask eternity-shell eternity-launcher eternity-find eternity-monitor eternity-settings eternity-hw eternity-mcp eternity-signin; do
         [ -x "/usr/local/bin/$b" ] || { echo "$b missing or not executable"; return 1; }
     done
     [ -s /etc/xdg/autostart/eternity-shell.desktop ] && [ -s /etc/xdg/autostart/eternity-firstrun.desktop ] || { echo "autostart entries missing"; return 1; }
@@ -113,6 +113,43 @@ PY
     [ -f /opt/eternity/models/embed.gguf ] || { echo "embed.gguf (search by meaning) missing"; return 1; }
     dpkg -s python3-gi gnome-keyring libsecret-tools >/dev/null 2>&1 || { echo "GTK/keyring packages missing"; return 1; }
     [ -f /usr/share/fonts/truetype/michroma/Michroma-Regular.ttf ] || { echo "Michroma missing"; return 1; }
+    return 0
+}
+
+check_hardware() {
+    # eternity-hw must run, see the devices and find no device-class without a driver (QEMU: virtio/bochs/e1000).
+    local out rc
+    out=$(timeout $((60 * SCALE)) eternity-hw 2>&1); rc=$?
+    echo "$out" | grep -q '^PCI devices' || { echo "eternity-hw produced no report: $(echo "$out" | tail -c 200 | tr '
+' ' ')"; return 1; }
+    echo "$out" | grep -q 'without a driver' && { echo "device without a driver: $(echo "$out" | grep 'without a driver' | head -2 | tr '
+' ' ')"; return 1; }
+    echo "INFO hw: $(echo "$out" | grep -E '^(Network|Bluetooth|Graphics|Sound|Firmware):' | tr '
+' ' ' | cut -c1-300)" >&2
+    echo "$out" | grep -E '^  [✗!]' | head -5 | sed 's/^/INFO hw problem:/' >&2
+    [ -f /etc/modprobe.d/eternity-hardware.conf ] || { echo "modprobe quirks file missing"; return 1; }
+    dpkg -s bluez fwupd power-profiles-daemon firmware-misc-nonfree pciutils >/dev/null 2>&1 || { echo "hardware packages missing"; return 1; }
+    [ "$(systemctl is-enabled bluetooth 2>/dev/null)" = enabled ] || { echo "bluetooth.service not enabled"; return 1; }
+    return 0
+}
+
+check_claude_code() {
+    # Claude Code ships pinned; the user signs in themselves. Here: installed, policy file valid, our MCP server answers.
+    command -v claude >/dev/null 2>&1 || { echo "claude not installed"; return 1; }
+    local v; v=$(timeout $((30 * SCALE)) claude --version 2>&1 | head -1)
+    echo "$v" | grep -qE '^[0-9]+\.[0-9]+' || { echo "claude --version failed: $v"; return 1; }
+    echo "INFO claude-code: $v" >&2
+    python3 -c 'import json; json.load(open("/etc/claude-code/managed-settings.json"))' || { echo "managed-settings.json invalid"; return 1; }
+    grep -q DISABLE_UPDATES /etc/environment.d/60-eternity-claude-code.conf || { echo "env policy missing"; return 1; }
+    local out
+    out=$(printf '%s
+' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | ETERNITY_CONSENT=deny timeout $((30 * SCALE)) eternity-mcp 2>&1)
+    echo "$out" | grep -q '"approve"' || { echo "eternity-mcp did not list the approve tool: $(echo "$out" | tail -c 200)"; return 1; }
+    out=$(printf '%s
+' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"approve","arguments":{"tool_name":"Bash","input":{"command":"sudo id"}}}}' | ETERNITY_CONSENT=allow timeout $((30 * SCALE)) eternity-mcp 2>&1)
+    echo "$out" | grep -q 'deny' || { echo "approve let a sudo command through: $(echo "$out" | tail -c 200)"; return 1; }
+    # the status probe must not hang or crash when nobody is signed in
+    timeout $((30 * SCALE)) python3 -c 'import sys; sys.path.insert(0,"/usr/lib/eternity/py"); from eternity import providers as P; st=P.claude_code_status(); print("INFO claude-code status:", st["detail"], file=sys.stderr); sys.exit(0 if st["installed"] else 1)' || { echo "claude_code_status failed"; return 1; }
     return 0
 }
 

@@ -10,6 +10,8 @@ firmware-iwlwifi
 firmware-realtek
 firmware-atheros
 firmware-brcm80211
+firmware-misc-nonfree
+firmware-sof-signed
 amd64-microcode
 intel-microcode
 network-manager
@@ -42,3 +44,12 @@ apparmor-utils
 apparmor-profiles
 apparmor-profiles-extra
 unattended-upgrades
+# hardware tooling (eternity-hw, firmware updates, power, radios)
+pciutils
+usbutils
+rfkill
+fwupd
+power-profiles-daemon
+acpid
+tpm2-tools
+v4l-utils

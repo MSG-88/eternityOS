@@ -166,14 +166,28 @@ class FirstRun(Gtk.Window):
         self.body.pack_start(label("The assistant can understand this computer and act for you; every action is confirmed by you first and can be undone.", "subtitle", wrap=True), False, False, 0)
         self.provider_radios = {}
         first = None
-        for key in ("local", "anthropic", "openai"):
+        self.cc = P.claude_code_status()
+        for key in S.PROVIDERS:
+            if key == "claude_code" and not self.cc["installed"]:
+                continue
             rb = Gtk.RadioButton.new_with_label_from_widget(first, P.PROVIDER_LABELS[key])
             first = first or rb
             rb.set_active(self.cfg.provider == key)
             rb.connect("toggled", self.on_provider_toggled)
             self.provider_radios[key] = rb
             self.body.pack_start(rb, False, False, 0)
-        self.body.pack_start(label("On this device: the bundled Qwen model via llama.cpp, works offline, nothing leaves the machine.", "faint", wrap=True), False, False, 0)
+        self.body.pack_start(label("On this device: the bundled Qwen model via llama.cpp, works offline, nothing leaves the machine. "
+                                   "Your Claude account: runs Claude Code, signed in by you; Eternity keeps no credentials and every action still asks you first.", "faint", wrap=True), False, False, 0)
+        # sign-in row for providers that bring their own login (Claude Code)
+        self.signin_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.signin_status = label("", "faint", wrap=True)
+        self.signin_box.pack_start(self.signin_status, False, False, 0)
+        row = Gtk.Box(spacing=8)
+        self.signin_btn = button("Sign in with your Claude account", "primary", on_click=self.on_signin)
+        row.pack_start(self.signin_btn, False, False, 0)
+        row.pack_start(button("Check again", "ghost", on_click=self.refresh_signin), False, False, 0)
+        self.signin_box.pack_start(row, False, False, 0)
+        self.body.pack_start(self.signin_box, False, False, 0)
         self.key_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.key_entry = Gtk.Entry()
         self.key_entry.set_visibility(False)
@@ -196,15 +210,40 @@ class FirstRun(Gtk.Window):
     def on_provider_toggled(self, *_):
         prov = self.selected_provider()
         cloud = prov != "local"
-        self.key_box.set_visible(cloud)
-        self.key_box.set_no_show_all(not cloud)
-        if cloud:
+        keyed = cloud and prov not in S.SIGNIN_PROVIDERS
+        signin = prov in S.SIGNIN_PROVIDERS
+        self.key_box.set_visible(keyed)
+        self.key_box.set_no_show_all(not keyed)
+        self.signin_box.set_visible(signin)
+        self.signin_box.set_no_show_all(not signin)
+        if keyed:
             self.key_box.show_all()
             self.key_link.set_uri(P.PROVIDER_KEY_URLS[prov])
             existing = self.store.get(prov)
             self.key_entry.set_placeholder_text("A key is already stored; paste a new one to replace it" if existing else "Paste your API key")
+        if signin:
+            self.signin_box.show_all()
+            self.refresh_signin()
+        if cloud:
             self.ondevice.set_active(False)
         self.ondevice.set_sensitive(not cloud)
+
+    def refresh_signin(self, *_):
+        self.cc = P.claude_code_status()
+        ok = self.cc["signed_in"]
+        self.signin_status.set_text(("Claude Code " + (self.cc["version"] or "") + ": " + self.cc["detail"]).strip()
+                                    + ("" if ok else ". The sign-in opens in a terminal; follow the link (on this or another device) and paste the code back."))
+        self.signin_btn.set_label("Signed in" if ok else "Sign in with your Claude account")
+        self.signin_btn.set_sensitive(not ok)
+
+    def on_signin(self):
+        import subprocess
+        subprocess.Popen(["eternity-signin"])
+        GLib.timeout_add_seconds(5, self._poll_signin, 0)
+
+    def _poll_signin(self, n):
+        self.refresh_signin()
+        return not self.cc["signed_in"] and n < 60 and GLib.timeout_add_seconds(5, self._poll_signin, n + 1) and False
 
     def step_done(self):
         self.kicker.set_text("READY")
@@ -240,7 +279,13 @@ class FirstRun(Gtk.Window):
             self.cfg.unlock_methods = methods
         if save and step == "assistant":
             prov = self.selected_provider()
-            if prov != "local":
+            if prov in S.SIGNIN_PROVIDERS:
+                self.refresh_signin()
+                if not self.cc["signed_in"]:
+                    self.signin_status.set_text("Sign in first (or choose another assistant; you can come back in Settings > Eternity).")
+                    return
+                self.cfg.on_device_only = False
+            elif prov != "local":
                 key = self.key_entry.get_text().strip()
                 if key:
                     self.store.set(prov, key)
