@@ -31,3 +31,4 @@ config/includes.chroot/var/cache/
 .hostvenv/
 tools/elevated/out/
 tests/out/hyperv/
+.claude/settings.local.json
