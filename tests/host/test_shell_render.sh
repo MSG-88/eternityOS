@@ -4,7 +4,7 @@
 # chosen logical size, writes a geometry dump (JSON) and screenshots. Asserts design geometry.
 # Run on the build host (WSL): bash tests/host/test_shell_render.sh   -> "SHELL RENDER: PASS"
 set -u
-cd "$(dirname "$0")/../.." || exit 1
+cd "${E8ROOT:-$(dirname "$0")/../..}" || exit 1
 SHELL_DIR=config/includes.chroot/usr/share/eternity/shell
 OUT=${OUT:-$(mktemp -d)}
 fail=0
