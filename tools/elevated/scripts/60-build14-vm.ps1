@@ -1,5 +1,5 @@
-# Build 14 on Hyper-V: recreate the test VM with the new ISO (6 GB max so the default local model
-# loads), boot the "Eternity shell" entry, log in key by key, screenshot splash / greeter / session.
+# Build 14 on Hyper-V: recreate the test VM with the new ISO at maximum resources (8 vCPU, up to
+# 8 GB so the default local model loads), boot the "Eternity shell" entry, log in key by key, screenshot splash / greeter / session.
 # Shots: tests\out\hyperv\b14-*.png (1920x1080). Opens the console for the owner.
 $ErrorActionPreference = 'Stop'
 $Root = 'C:\Users\muthu.MSG\Documents\Claude\eternity-08'
@@ -18,8 +18,13 @@ function At([int]$sec) { $w = $sec - [int]((Get-Date) - $script:t0).TotalSeconds
 $vm = Get-VM -Name $VMName -ErrorAction SilentlyContinue
 if ($vm) { if ($vm.State -ne 'Off') { Stop-VM -Name $VMName -TurnOff -Force }; Remove-VM -Name $VMName -Force; "old VM removed" }
 if (Test-Path $Vhd) { Remove-Item -Force $Vhd }
-New-VM -Name $VMName -Generation 2 -MemoryStartupBytes 2GB -NewVHDPath $Vhd -NewVHDSizeBytes 40GB -SwitchName 'Default Switch' | Out-Null
-Set-VM -Name $VMName -ProcessorCount 4 -DynamicMemory -MemoryMinimumBytes 1GB -MemoryMaximumBytes 6GB -AutomaticCheckpointsEnabled $false -CheckpointType Disabled -AutomaticStopAction TurnOff -AutomaticStartAction Nothing
+# Maximum resources on this 8-core / 14 GB host (owner's call: no interruptions): all 8 logical
+# CPUs, 4 GB at start growing to 8 GB, high memory priority, CPU weight above every other VM,
+# state saved (not lost) if the host stops it, resumed if the host restarts.
+New-VM -Name $VMName -Generation 2 -MemoryStartupBytes 4GB -NewVHDPath $Vhd -NewVHDSizeBytes 40GB -SwitchName 'Default Switch' | Out-Null
+Set-VM -Name $VMName -ProcessorCount 8 -DynamicMemory -MemoryMinimumBytes 2GB -MemoryMaximumBytes 8GB -AutomaticCheckpointsEnabled $false -CheckpointType Disabled -AutomaticStopAction Save -AutomaticStartAction StartIfRunning -AutomaticStartDelay 30
+Set-VMMemory -VMName $VMName -Buffer 25 -Priority 90
+Set-VMProcessor -VMName $VMName -Reserve 25 -Maximum 100 -RelativeWeight 200
 Set-VMFirmware -VMName $VMName -EnableSecureBoot On -SecureBootTemplate MicrosoftUEFICertificateAuthority
 Add-VMDvdDrive -VMName $VMName -Path $Iso
 Set-VMFirmware -VMName $VMName -FirstBootDevice (Get-VMDvdDrive -VMName $VMName)
