@@ -73,6 +73,7 @@ render 1536 864 presence-answer && {
     check presence-answer 'near(it["core"][0] + it["core"][2]/2, 640*k, 1) and near(it["core"][1] + it["core"][3]/2, 540*k, 1)' "answering: core at (640k, 540k)"
     check presence-answer 'near(it["core"][2], 600*0.42*k, 2)' "answering: core s 0.42"
     check presence-answer 'near(it["card0"][0] + 150*k, 640*k, 2) and it["cx"][4] == "answering"' "answering: cards orbit the shifted centre"
+    check presence-answer 'near(it["card0"][1] + 60*k, (540 - 270*0.75)*k, 2)' "answering: the orbit shrinks to 0.75 so no card reaches the answer column"
 }
 render 1536 864 presence-windows && {
     check presence-windows 'it["cards_visible"] is False' "windows: cards hidden"

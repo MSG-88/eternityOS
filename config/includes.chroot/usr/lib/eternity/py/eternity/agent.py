@@ -8,8 +8,10 @@ undo) and their results back to the model until it answers in text.
 """
 import os
 import platform
+import re
 import shutil
 import socket
+import subprocess
 from typing import Callable, Iterator, List, Optional, Tuple
 
 from . import actions as A
@@ -39,9 +41,8 @@ def os_knowledge() -> str:
                     break
     except OSError:
         pass
-    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "XFCE")
     live = os.path.exists("/run/live/medium")
-    bits.append(f"desktop {desktop}; {'live session from the USB stick (nothing persists)' if live else 'installed system'}")
+    bits.append(f"{session_description()}; {'live session from the USB stick (nothing persists)' if live else 'installed system'}")
     tools = [t for t in ("eternity-chat", "eternity-ai", "eternity-install", "eternity-find", "eternity-hw", "claude", "firefox", "thunar", "xfce4-terminal", "mousepad")
              if shutil.which(t)]
     bits.append("installed Eternity tools and apps: " + ", ".join(tools))
@@ -52,6 +53,36 @@ def os_knowledge() -> str:
     bits.append("settings: ~/.config/eternity/settings.json; action log ~/.local/state/eternity/actions.log; "
                 "installer: 'Install Eternity 08' (Calamares) in live sessions")
     return "\n".join("- " + b for b in bits)
+
+
+_HYPR_VERSION: Optional[str] = None
+
+
+def hyprland_version() -> str:
+    """'0.55.2' from `Hyprland --version` (cached; '' when it cannot be read)."""
+    global _HYPR_VERSION
+    if _HYPR_VERSION is None:
+        _HYPR_VERSION = ""
+        exe = shutil.which("Hyprland")
+        if exe:
+            try:
+                out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=3).stdout
+                m = re.search(r"v?(\d+\.\d+(?:\.\d+)?)", out.splitlines()[0] if out else "")
+                _HYPR_VERSION = m.group(1) if m else ""
+            except (OSError, subprocess.SubprocessError, IndexError):
+                _HYPR_VERSION = ""
+    return _HYPR_VERSION
+
+
+def session_description() -> str:
+    """Which desktop session the user is in, so the assistant looks at the right compositor."""
+    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "XFCE")
+    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE") or desktop.lower() == "eternity":
+        v = hyprland_version()
+        return (f"session: the Eternity shell (Quickshell) on the Hyprland Wayland compositor{' ' + v if v else ''}; "
+                "there is no X11 window manager here; windows, workspaces and keybinds come from "
+                "`hyprctl` (hyprctl version / clients / monitors); Super+Space asks Eternity, Super+Return opens a terminal")
+    return f"session: the classic {desktop} desktop (X11) with the xfwm4 window manager"
 
 
 def system_prompt(cfg: S.Settings) -> str:

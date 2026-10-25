@@ -22,6 +22,8 @@ done
 for f in $(curl -fsS "$BASE/usr/share/eternity/shell/" | grep -oE 'href="[A-Za-z0-9_]+\.qml"' | cut -d'"' -f2 | sort -u); do
     pull "usr/share/eternity/shell/$f"
 done
+pull usr/share/eternity/shell/qmldir            # singletons are registered here (a new one needs it)
+pull usr/share/eternity/keys.toml
 for f in eternity-session eternity-lock eternity-supervise eternity-ask eternity-settings eternity-monitor eternity-launcher eternity-voice; do
     curl -fsS --head "$BASE/usr/local/bin/$f" >/dev/null 2>&1 && pull "usr/local/bin/$f" && chmod 755 "/usr/local/bin/$f"
 done
@@ -31,5 +33,5 @@ for f in LockContent.qml GreeterContent.qml Theme.qml Geometry.qml Mobius.qml Wo
     [ -f /usr/share/eternity/greeter/$f ] && cp -f /usr/share/eternity/shell/$f /usr/share/eternity/greeter/$f
 done
 U=${SUDO_USER:-eternity}
-sudo -u "$U" -H sh -c 'eternity-theme render >/dev/null 2>&1; hyprctl reload >/dev/null 2>&1; pkill -f eternity-daemon; pkill quickshell' || true
+sudo -u "$U" -H sh -c 'eternity-theme render >/dev/null 2>&1; hyprctl reload >/dev/null 2>&1; pkill -f "from eternity import daemon"; pkill quickshell'   # the daemon is python3 -c "...from eternity import daemon..." (pkill -f takes a regex: no parentheses) || true
 echo "e8pull done: daemon and shell restarting"

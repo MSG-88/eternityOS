@@ -13,6 +13,8 @@ Item {
     property bool answering: false            // an answer is on screen: everything slides left, the right column is the answer's
     property real cx: answering ? 640 : 960    // orbit centre x (design px)
     Behavior on cx { NumberAnimation { duration: Theme.enterMs + 300; easing.type: Easing.InOutCubic } }
+    property real os: answering ? 0.75 : 1     // orbit scale: smaller while answering so no card reaches the answer column (x 1180)
+    Behavior on os { NumberAnimation { duration: Theme.enterMs + 300; easing.type: Easing.InOutCubic } }
     property bool animated: !Theme.reduced
     property bool dimmed: false               // while an answer streams
     property real rot: 0
@@ -50,11 +52,11 @@ Item {
         ShapePath {
             strokeColor: Theme.n700; strokeWidth: Math.max(1, root.k); fillColor: "transparent"
             strokeStyle: ShapePath.DashLine; dashPattern: [0.5, 2.5]
-            PathAngleArc { centerX: root.cx * root.k; centerY: 540 * root.k; radiusX: 400 * root.k; radiusY: 400 * root.k; startAngle: 0; sweepAngle: 360 }
+            PathAngleArc { centerX: root.cx * root.k; centerY: 540 * root.k; radiusX: 400 * root.os * root.k; radiusY: 400 * root.os * root.k; startAngle: 0; sweepAngle: 360 }
         }
         ShapePath {
             strokeColor: Theme.accent; strokeWidth: 1.5 * root.k; fillColor: "transparent"; capStyle: ShapePath.RoundCap
-            PathAngleArc { centerX: root.cx * root.k; centerY: 540 * root.k; radiusX: 400 * root.k; radiusY: 400 * root.k; startAngle: -90 + root.rot * 1.4; sweepAngle: 0.18 * 360 }
+            PathAngleArc { centerX: root.cx * root.k; centerY: 540 * root.k; radiusX: 400 * root.os * root.k; radiusY: 400 * root.os * root.k; startAngle: -90 + root.rot * 1.4; sweepAngle: 0.18 * 360 }
         }
         opacity: 0.6
     }
@@ -73,8 +75,8 @@ Item {
             k: root.k
             kicker: modelData.kicker || ""; title: modelData.title || ""; body: modelData.body || ""; meta: modelData.meta || ""
             readonly property real angle: ([-90, 0, 90, 180][index % 4] + Math.floor(index / 4) * 45 + root.rot) * Math.PI / 180
-            x: root.cx * root.k + Math.cos(angle) * Theme.orbit[0] * root.k - 150 * root.k
-            y: 540 * root.k + Math.sin(angle) * Theme.orbit[1] * root.k - 60 * root.k
+            x: root.cx * root.k + Math.cos(angle) * Theme.orbit[0] * root.os * root.k - 150 * root.k
+            y: 540 * root.k + Math.sin(angle) * Theme.orbit[1] * root.os * root.k - 60 * root.k
             visible: root.cardsVisible
             opacity: (root.dimmed && index !== 0) ? 0.1 : 1
             Behavior on opacity { NumberAnimation { duration: Theme.enterMs } }

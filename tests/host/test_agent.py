@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "config", "includes.chroot", "usr", "lib", "eternity", "py"))
@@ -108,6 +109,24 @@ class AgentTest(unittest.TestCase):
         k = G.os_knowledge()
         self.assertIn("CPU threads", k)
         self.assertIn("/opt/eternity/models", k)
+
+    def test_os_knowledge_names_hyprland_in_the_eternity_session(self):
+        # in the Eternity session the compositor is Hyprland; the assistant must not go looking for xfwm4
+        env = {"XDG_CURRENT_DESKTOP": "Eternity", "HYPRLAND_INSTANCE_SIGNATURE": "abc123"}
+        with unittest.mock.patch.dict(os.environ, env):
+            k = G.os_knowledge()
+        self.assertIn("Hyprland", k)
+        self.assertIn("Wayland", k)
+        self.assertIn("Eternity shell", k)
+        self.assertNotIn("xfwm4", k)
+
+    def test_os_knowledge_names_xfce_in_the_classic_session(self):
+        env = {"XDG_CURRENT_DESKTOP": "XFCE"}
+        with unittest.mock.patch.dict(os.environ, env):
+            os.environ.pop("HYPRLAND_INSTANCE_SIGNATURE", None)
+            k = G.os_knowledge()
+        self.assertIn("xfwm4", k)
+        self.assertNotIn("Hyprland", k)
 
 
 if __name__ == "__main__":
