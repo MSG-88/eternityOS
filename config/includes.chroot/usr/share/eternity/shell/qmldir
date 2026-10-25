@@ -17,3 +17,6 @@ Presence 1.0 Presence.qml
 Consent 1.0 Consent.qml
 BarContent 1.0 BarContent.qml
 Bar 1.0 Bar.qml
+PamAuth 1.0 PamAuth.qml
+LockContent 1.0 LockContent.qml
+Lock 1.0 Lock.qml

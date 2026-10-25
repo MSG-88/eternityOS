@@ -98,4 +98,17 @@ render 1536 864 consent && {
 render 1536 864 consent-pin && check consent-pin 'd["pin_visible"] is True and it["consent_kicker"][4] == "ALLOW RUN COMMAND?"' "PIN field when required"
 for s in bar answer consent; do [ -f "$OUT/$s/$s.png" ] && ok "$s.png written" || bad "$s.png missing"; done
 
+# lock scene (design scene 03 without the camera): mark 176 at (960, 420), greeting 52/500 at y 640,
+# passphrase field, "n things since you left", chips at bottom 88 and the "Other ways" line at bottom 56
+render 1536 864 lock && {
+    check lock 'near(it["mark"][0] + it["mark"][2]/2, 960*k, 1) and near(it["mark"][1] + it["mark"][3]/2, 420*k, 1) and near(it["mark"][2], 176*k, 1)' "mark 176k at (960k, 420k)"
+    check lock 'it["greeting"][4] == "Good evening, Maya." and near(it["greeting"][1], 640*k, 2) and near(it["greeting"][0] + it["greeting"][2]/2, 1536/2, 2)' "greeting at y 640k, centred"
+    check lock 'it["since"][4] == "3 things since you left"' "since-count line"
+    check lock 'near(it["chips"][1] + it["chips"][3], 864 - 88*k, 2) and near(it["other"][1] + it["other"][3], 864 - 56*k, 2)' "chips at bottom 88k, other-ways at bottom 56k"
+    check lock 'd["locked"] is True and d["backoff_ms"] == 0 and d["failures"] == 0' "locked, no backoff"
+}
+render 1536 864 lock-backoff && check lock-backoff 'd["failures"] == 5 and d["backoff_ms"] == 30000 and d["locked"] is True and d["shake"] is True' "5 wrong passphrases: 30 s backoff, still locked"
+render 1536 864 lock-pin && check lock-pin 'd["mode"] == "pin" and it["field_placeholder"][4] == "PIN"' "PIN chip switches the field to PIN"
+[ -f "$OUT/lock/lock.png" ] && ok "lock.png written" || bad "lock.png missing"
+
 if [ $fail = 0 ]; then echo "SHELL RENDER: PASS"; else echo "SHELL RENDER: FAIL (artifacts in $OUT)"; exit 1; fi
