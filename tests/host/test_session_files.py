@@ -42,6 +42,10 @@ class TestSessionFiles(unittest.TestCase):
         self.assertIn("XDG_CURRENT_DESKTOP=Eternity", s)
         self.assertIn("eternity-theme render", s)
         self.assertIn("exec start-hyprland", s)        # Hyprland 0.55 warns on screen when started bare
+        # build 14: start-hyprland does not forward --config and Hyprland came up with its default config;
+        # HYPRLAND_CONFIG is honoured through the wrapper and bare
+        self.assertRegex(s, r'export HYPRLAND_CONFIG="\$CFG/hyprland.conf"')
+        self.assertNotIn("start-hyprland --config", s)
         self.assertIn("exec Hyprland", s)              # fallback when the wrapper is missing
         self.assertIn("WLR_RENDERER_ALLOW_SOFTWARE=1", s)
 

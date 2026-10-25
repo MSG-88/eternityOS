@@ -32,8 +32,11 @@ fi
 mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/hyprland"     # Hyprland's crash-report directory
 eternity-theme render || echo "eternity-session: theme render failed, using the shipped defaults" >&2
 [ -s "$CFG/hyprland.conf" ] || cp /usr/share/eternity/hyprland.fallback.conf "$CFG/hyprland.conf" 2>/dev/null
-# Hyprland 0.55 wants its wrapper (crash recovery, env); bare Hyprland shows a warning on screen
+# Hyprland 0.55 wants its wrapper (crash recovery, env); bare Hyprland shows a warning on screen.
+# The wrapper does not forward --config (build 14 came up with the default config), so the
+# config is named through the environment, which both the wrapper and bare Hyprland honour.
+export HYPRLAND_CONFIG="$CFG/hyprland.conf"
 if command -v start-hyprland >/dev/null 2>&1; then
-    exec start-hyprland --config "$CFG/hyprland.conf"
+    exec start-hyprland
 fi
 exec Hyprland --config "$CFG/hyprland.conf"
