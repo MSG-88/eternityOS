@@ -3,10 +3,12 @@
 # take screenshots: GRUB menu, Plymouth splash, login screen, desktop, terminal.
 #
 #   tests/run-qemu-visual.sh <iso>              screenshots -> tests/out/{grub,splash,login,desktop,terminal}.png
+#   tests/run-qemu-visual.sh <iso> --session eternity   the Eternity session (Hyprland + shell): e-{desktop,ask,answer,lock,unlocked,terminal}.png
 #   tests/run-qemu-visual.sh <iso> --selftest   choose the "Self-test" GRUB entry and collect the
 #                                               serial self-test report (proves Secure Boot + signed kernel)
 set -uo pipefail
-ISO=${1:-}; MODE=${2:-shots}
+ISO=${1:-}; MODE=${2:-shots}; SESSION=${3:-}
+[ "$MODE" = --session ] && { SESSION=${3:-eternity}; MODE=session; }
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=$HERE/out
 MEM=${ETERNITY_QEMU_MEM:-4096}
@@ -43,6 +45,28 @@ if [ "$MODE" = "--selftest" ]; then
     grep -E '^(INFO|CHECK|SMOKE)' "$OUT/serial-visual.log" | tr -d '\r'
     grep -q '^SMOKE: PASS' "$OUT/serial-visual.log"
     exit $?
+fi
+if [ "$MODE" = session ]; then
+    # fourth entry: "Eternity 08 Live (Eternity shell)" (eternity.session=eternity -> lightdm user-session)
+    Q keys Down Down Down Enter
+    S 8;  Q screendump "$OUT/e-splash.png"
+    S 30; Q screendump "$OUT/e-login.png"
+    echo "INFO e-login screenshot at t=$(( $(date +%s) - t0 ))s"
+    Q keys eternity Enter
+    S 25; Q screendump "$OUT/e-desktop.png"          # presence + strip (+ first-run wizard on a fresh user)
+    Q keys Esc; S 3; Q screendump "$OUT/e-desktop2.png"
+    Q keys Super-Space; S 3; Q screendump "$OUT/e-ask.png"
+    Q keys "what time is it" Enter; S 20; Q screendump "$OUT/e-answer.png"
+    Q keys Esc; S 2
+    Q keys Super-L; S 4; Q screendump "$OUT/e-lock.png"
+    Q keys eternity Enter; S 5; Q screendump "$OUT/e-unlocked.png"
+    Q keys Super-Enter; S 6
+    Q keys "hyprctl layers | grep -E 'namespace|Layer' | head -12; hyprctl monitors | grep -E 'scale|Monitor'; ps -o rss,comm -C quickshell,eternity-daemon,Hyprland" Enter
+    S 3; Q screendump "$OUT/e-terminal.png"
+    Q keys "clear; tail -5 ~/.local/state/eternity/ui.log ~/.local/state/eternity/mcp.log 2>/dev/null; journalctl --user -b --no-pager -p warning 2>/dev/null | tail -8" Enter
+    S 3; Q screendump "$OUT/e-logs.png"
+    echo "screenshots in $OUT: e-splash.png e-login.png e-desktop.png e-ask.png e-answer.png e-lock.png e-unlocked.png e-terminal.png e-logs.png"
+    exit 0
 fi
 Q keys Enter                      # boot "Eternity 08 Live"
 S 8;  Q screendump "$OUT/splash.png"

@@ -53,6 +53,26 @@ class TestSessionFiles(unittest.TestCase):
         subprocess.run(["sh", "-n", path], check=True)
         self.assertIn("eternity-session", read("config/hooks/normal/0460-session.hook.chroot"))
 
+    def test_grub_entry_for_the_session(self):
+        g = read("config/bootloaders/grub-pc/grub.cfg")
+        self.assertIn('menuentry "Eternity 08 Live (Eternity shell)"', g)
+        self.assertIn("eternity.session=eternity", g)
+        # the entry comes after the self-test entry so the runners' Down-key counts stay valid
+        self.assertLess(g.index("Self-test"), g.index("Eternity shell"))
+
+    def test_visual_runner_has_session_mode(self):
+        r = read("tests/run-qemu-visual.sh")
+        for needle in ("--session", "e-desktop.png", "e-ask.png", "e-answer.png", "e-lock.png", "e-unlocked.png", "e-terminal.png", "hyprctl layers"):
+            self.assertIn(needle, r)
+        subprocess.run(["bash", "-n", os.path.join(ROOT, "tests/run-qemu-visual.sh")], check=True)
+
+    def test_chain13(self):
+        c = read("tools/dev/chain-build13.sh")
+        for needle in ("build13-run.log", "BUILD13 DONE", "run-qemu-visual.sh\" \"$ISO\" --session eternity", "run-qemu-smoke.sh", "boot-fallback", "run-qemu-bios.sh", "run-qemu-usb.sh"):
+            self.assertIn(needle, c)
+        subprocess.run(["bash", "-n", os.path.join(ROOT, "tools/dev/chain-build13.sh")], check=True)
+        subprocess.run(["bash", "-n", os.path.join(ROOT, "tools/dev/start-chain13.sh")], check=True)
+
     def test_smoke_has_check_session(self):
         s = read("tests/smoke.sh")
         self.assertIn("check_session()", s)

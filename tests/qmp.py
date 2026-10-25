@@ -29,7 +29,8 @@ NAMED = {"Enter": "ret", "Tab": "tab", "Down": "down", "Up": "up", "Esc": "esc",
          "Left": "left", "Right": "right", "Backspace": "backspace", "Delete": "delete",
          "Ctrl-Alt-T": ("ctrl", "alt", "t"), "Ctrl-A": ("ctrl", "a"),
          "Alt-N": ("alt", "n"), "Alt-B": ("alt", "b"), "Alt-I": ("alt", "i"), "Alt-D": ("alt", "d"),
-         "Alt-F4": ("alt", "f4")}
+         "Alt-F4": ("alt", "f4"),
+         "Super-Space": ("meta_l", "spc"), "Super-L": ("meta_l", "l"), "Super-Enter": ("meta_l", "ret"), "Super-Q": ("meta_l", "q")}
 SCREEN_W, SCREEN_H = 1280, 800   # the virtio-vga mode the tests screenshot at
 
 
