@@ -1,6 +1,12 @@
 #!/bin/sh
-# Lock the session: asks eternity-daemon (the shell raises the lock scene); falls back to loginctl.
-if /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity import daemon; daemon.Client().call("session.lock")' 2>/dev/null; then
-    exit 0
-fi
-exec loginctl lock-session
+# Lock the session. Asks eternity-daemon, which tells the shell to raise the lock scene and
+# answers only once the shell has acknowledged it. Exit 0 = locked, 1 = NOT locked (daemon or
+# shell missing): callers such as hypridle must not assume the screen is covered.
+# No fallback to the logind lock-session command: it would call back into this script through hypridle and loop.
+out=$(/usr/bin/python3 -c 'import json, sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity import daemon; print(json.dumps(daemon.Client().call("session.lock")))' 2>/dev/null)
+case "$out" in
+    *'"locked": true'*) exit 0 ;;
+esac
+echo "eternity-lock: session NOT locked (${out:-daemon not reachable})" >&2
+logger -t eternity-lock "session NOT locked (${out:-daemon not reachable})" 2>/dev/null
+exit 1

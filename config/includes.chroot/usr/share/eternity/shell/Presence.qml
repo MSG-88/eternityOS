@@ -12,8 +12,10 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "eternity-presence"
     WlrLayershell.layer: WlrLayer.Background
+    readonly property bool panel: Geometry.isPanel(screen ? screen.name : "", Quickshell.screens.map(s => s.name))
+    visible: panel      // external outputs get the strip and windows only (spec 13.1)
     readonly property bool hasWindows: {
-        try { const ws = Hyprland.focusedWorkspace; return ws ? ws.toplevels.values.length > 0 : false; } catch (e) { return false; }
+        try { const m = Hyprland.monitorFor(screen); const ws = m ? m.activeWorkspace : null; return ws ? ws.toplevels.values.length > 0 : false; } catch (e) { return false; }
     }
     PresenceContent { id: content; anchors.fill: parent; k: win.k; windowState: win.hasWindows ? "windows" : "empty" }
     Connections {

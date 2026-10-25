@@ -172,7 +172,6 @@ class TestAsk(Base):
         sub = Subscriber(self.sock_path)
         self.c.call("ask.start", text="two things")
         first = sub.wait("consent.request")
-        second = sub.wait("consent.request", timeout=3.0) if False else None
         # the second request only arrives after the first is answered (sequential tool execution)
         self.c.call("consent.reply", consent_id=first["consent_id"], ok=True)
         second = sub.wait("consent.request")
@@ -191,7 +190,9 @@ class TestAsk(Base):
         self.c.call("ask.start", text="run true")
         ev = sub.wait("consent.request")
         self.assertTrue(ev["need_pin"])
-        self.c.call("consent.reply", consent_id=ev["consent_id"], ok=True, pin="9999")
+        r = self.c.call("consent.reply", consent_id=ev["consent_id"], ok=True, pin="9999")
+        self.assertEqual((r["ok"], r.get("pin")), (False, "wrong"))          # wrong PIN: the consent stays open
+        self.c.call("consent.reply", consent_id=ev["consent_id"], ok=False)   # the user gives up
         events = sub.collect_until("ask.done")
         action = next(e["data"] for e in events if e["event"] == "ask.action")
         self.assertFalse(action["ok"])
@@ -210,6 +211,88 @@ class TestAsk(Base):
         with self.assertRaises(D.DaemonError):
             self.c.call("ask.start", text="again")
         self.d.stop()
+
+
+class TestReviewFixes(Base):
+    """Findings of the 2026-10-25 branch review: PIN cannot be skipped by the caller (C2),
+    lock waits for the shell's ack (C3), bad lines never kill the daemon (I1), slow subscribers
+    are dropped instead of corrupting the stream (I3), pending consents replay and close (I5),
+    settings are reloaded from disk and coerced (I6), a reconnecting shell is re-locked (I2)."""
+
+    def test_pin_cannot_be_skipped_by_the_caller(self):
+        from eternity.ui.firstrun import store_pin
+        store_pin("1234")
+        self.cfg.unlock_methods = ["passphrase", "pin"]
+        self.prov.turns = [[("tool_call", {"id": "c1", "name": "run_command", "arguments": {"command": "true"}})], [("text", "ok")]]
+        sub = Subscriber(self.sock_path)
+        self.c.call("ask.start", text="run true")
+        ev = sub.wait("consent.request")
+        r = self.c.call("consent.reply", consent_id=ev["consent_id"], ok=True, need_pin=False)   # caller says "no PIN needed"
+        self.assertFalse(r["ok"])                                             # ignored: the daemon knows a PIN is required
+        self.c.call("consent.reply", consent_id=ev["consent_id"], ok=False)
+        events = sub.collect_until("ask.done")
+        self.assertFalse(next(e["data"] for e in events if e["event"] == "ask.action")["ok"])
+
+    def test_unlock_methods_and_trust_are_not_settable_over_the_socket(self):
+        for key, value in (("unlock_methods", ["passphrase"]), ("trust_level", 1)):
+            with self.assertRaises(D.DaemonError):
+                self.c.call("settings.set", key=key, value=value)
+
+    def test_lock_requires_shell_ack(self):
+        self.d.lock_ack_s = 0.5
+        r = self.c.call("session.lock")                       # nobody acks
+        self.assertFalse(r["locked"])
+        sub = Subscriber(self.sock_path)
+        acker = threading.Thread(target=lambda: (sub.wait("session.lock"), D.Client(self.sock_path).call("session.locked")), daemon=True)
+        acker.start()
+        r = self.c.call("session.lock")
+        self.assertTrue(r["locked"])
+        # a shell that (re)connects while locked is told to lock again
+        late = Subscriber(self.sock_path)
+        late.wait("session.lock", timeout=5)
+        self.c.call("session.unlocked")
+        self.assertFalse(self.c.call("session.lock_info")["locked"])
+
+    def test_bad_lines_do_not_kill_the_daemon(self):
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.connect(self.sock_path)
+        s.sendall(b'[]\n1\n{"method":[1]}\n{"id":"x","method":"state.get","params":"nope"}\nnot json\n')
+        time.sleep(0.5)
+        self.assertIn("clock", self.c.call("state.get"))
+        self.assertTrue(self.t.is_alive())
+
+    def test_slow_subscriber_is_dropped_not_corrupting(self):
+        slow = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); slow.connect(self.sock_path)
+        slow.sendall(b'{"id":0,"method":"subscribe","params":{}}\n')
+        time.sleep(0.2)
+        for _ in range(3000):                                  # ~3 MB of events the slow client never reads
+            self.d.emit("noise", {"pad": "x" * 1000})
+        t0 = time.time()
+        self.assertIn("clock", self.c.call("state.get"))         # others are not stalled
+        self.assertLess(time.time() - t0, 5)
+        time.sleep(0.5)
+        with self.d.send_lock:
+            self.assertNotIn(slow, self.d.subscribers)
+
+    def test_pending_consent_replays_and_closes(self):
+        self.cfg.trust_level = 0
+        sub = Subscriber(self.sock_path)
+        self.c.call("ask.start", text="save a note")
+        ev = sub.wait("consent.request")
+        late = Subscriber(self.sock_path)                       # a shell that connects while a consent is pending
+        again = late.wait("consent.request", timeout=5)
+        self.assertEqual(again["consent_id"], ev["consent_id"])
+        self.c.call("consent.reply", consent_id=ev["consent_id"], ok=True)
+        closed = sub.wait("consent.closed")
+        self.assertEqual(closed["consent_id"], ev["consent_id"])
+        sub.collect_until("ask.done")
+
+    def test_settings_reloaded_and_coerced(self):
+        cfg = S.load(); cfg.verbosity = "detailed"; S.save(cfg)   # another process (the Settings app) wrote the file
+        self.assertEqual(self.c.call("settings.get")["verbosity"], "detailed")
+        self.c.call("settings.set", key="verbosity", value="brief")
+        self.assertEqual(S.load().verbosity, "brief")
+        r = self.c.call("settings.set", key="verbosity", value=5)   # bad value: coerced back by validate, never crashes
+        self.assertEqual(r["verbosity"], "normal")
 
 
 class TestSecurity(unittest.TestCase):

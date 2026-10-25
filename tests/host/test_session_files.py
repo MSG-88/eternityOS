@@ -73,6 +73,20 @@ class TestSessionFiles(unittest.TestCase):
         subprocess.run(["bash", "-n", os.path.join(ROOT, "tools/dev/chain-build13.sh")], check=True)
         subprocess.run(["bash", "-n", os.path.join(ROOT, "tools/dev/start-chain13.sh")], check=True)
 
+    def test_review_fixes_in_config(self):
+        """Branch review 2026-10-25: C1 hook executable, C3 lock never falls open, I2 supervision."""
+        mode = subprocess.run(["git", "ls-files", "-s", "config/includes.chroot/usr/lib/eternity/claude-hook"], cwd=ROOT,
+                              capture_output=True, text=True).stdout.split()[0]
+        self.assertEqual(mode, "100755")
+        self.assertIn("claude-hook", read("config/hooks/normal/0460-session.hook.chroot"))
+        lock = read("config/includes.chroot/usr/local/bin/eternity-lock")
+        self.assertNotIn("loginctl", lock)
+        self.assertIn("locked", lock)
+        sup = read("config/includes.chroot/usr/local/bin/eternity-supervise")
+        self.assertIn("while", sup)
+        subprocess.run(["sh", "-n", os.path.join(ROOT, "config/includes.chroot/usr/local/bin/eternity-supervise")], check=True)
+        subprocess.run(["sh", "-n", os.path.join(ROOT, "config/includes.chroot/usr/local/bin/eternity-lock")], check=True)
+
     def test_smoke_has_check_session(self):
         s = read("tests/smoke.sh")
         self.assertIn("check_session()", s)

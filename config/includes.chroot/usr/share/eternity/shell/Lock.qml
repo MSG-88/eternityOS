@@ -10,6 +10,8 @@ Scope {
     WlSessionLock {
         id: lock
         locked: false
+        onSecureChanged: { if (secure) Daemon.call("session.locked", {}, null); }
+        onLockedChanged: { if (!locked) Daemon.call("session.unlocked", {}, null); }
         surface: Component {
             WlSessionLockSurface {
                 color: Theme.bg

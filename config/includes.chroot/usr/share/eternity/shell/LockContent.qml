@@ -15,6 +15,7 @@ Item {
     property bool shake: false
     property bool locked: true
     property bool busy: false
+    property int submits: 0
     property var authFn: null                    // function(password, mode, cb)
     signal unlocked()
     readonly property string greetingText: (info.greeting || "Good evening") + (info.name ? ", " + info.name : "") + "."
@@ -77,10 +78,11 @@ Item {
 
     Timer { id: backoff; interval: 1000; repeat: true; running: root.backoffMs > 0; onTriggered: { root.backoffMs = Math.max(0, root.backoffMs - 1000); if (root.backoffMs === 0) root.failures = 0; } }
 
+    function setPassword(pw) { field.text = pw; }
     function submit() {
         const pw = field.text;
         if (pw === "" || root.busy || root.backoffMs > 0) return;
-        root.busy = true;
+        root.busy = true; root.submits += 1;
         const done = ok => {
             root.busy = false; field.text = "";
             if (ok) { root.failures = 0; root.locked = false; root.unlocked(); return; }
@@ -100,5 +102,5 @@ Item {
                  field_placeholder: [fieldPlaceholder.x, fieldPlaceholder.y, fieldPlaceholder.width, fieldPlaceholder.height, fieldPlaceholder.text],
                  chips: [chips.x, chips.y, chips.width, chips.height, ""], other: [other.x, other.y, other.width, other.height, other.text] };
     }
-    function flags() { return { locked: root.locked, backoff_ms: root.backoffMs, failures: root.failures, shake: root.shake, mode: root.mode }; }
+    function flags() { return { locked: root.locked, backoff_ms: root.backoffMs, failures: root.failures, shake: root.shake, mode: root.mode, submits: root.submits }; }
 }

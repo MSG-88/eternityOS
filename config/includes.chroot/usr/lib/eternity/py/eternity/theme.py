@@ -76,9 +76,10 @@ def validate(cfg: dict) -> List[str]:
         if not isinstance(v, str) or not HEX.match(v):
             errors.append(f"theme.color.{k}: not a #rrggbb colour: {v!r}")
     layout = cfg.get("layout") or {}
-    scale = layout.get("scale")
-    if scale is not None and not (isinstance(scale, (int, float)) and 1.0 <= float(scale) <= 3.0):
-        errors.append(f"layout.scale: must be between 1.0 and 3.0: {scale!r}")
+    for key in ("scale", "external_scale"):
+        scale = layout.get(key)
+        if scale is not None and not (isinstance(scale, (int, float)) and 1.0 <= float(scale) <= 3.0):
+            errors.append(f"layout.{key}: must be between 1.0 and 3.0: {scale!r}")
     for k in ("gaps", "border", "rounding", "strip_height"):
         v = layout.get(k)
         if v is not None and not (isinstance(v, int) and 0 <= v <= 200):
@@ -106,6 +107,10 @@ def _hypr(cfg: dict) -> str:
         action = (keys.get("action") or {}).get(name)
         if action:
             binds.append(f"bind = {combo}, exec, {action}")
+    for name, combo in (keys.get("bindr") or {}).items():
+        action = (keys.get("action") or {}).get(name)
+        if action:
+            binds.append(f"bindr = {combo}, exec, {action}")
     for name, combo in (keys.get("dispatch") or {}).items():
         binds.append(f"bind = {combo}, {name.replace('__', ' ').replace('_', ' ', 0)}")
     for i in range(1, 10):
@@ -115,10 +120,10 @@ def _hypr(cfg: dict) -> str:
         binds.append(f"bind = SUPER, {key}, movefocus, {d}")
         binds.append(f"bind = SUPER SHIFT, {key}, movewindow, {d}")
     layer_rules = "\n".join(f"layerrule = blur, {ns}\nlayerrule = ignorezero, {ns}" for ns in lay.get("blur_namespaces", []))
-    execs = "\n".join(f"exec-once = {x}" for x in lay.get("exec_once", ["eternity-daemon", "quickshell -c eternity", "hypridle -c /usr/share/eternity/hypridle.conf"]))
+    execs = "\n".join(f"exec-once = {x}" for x in lay.get("exec_once", ["eternity-supervise eternity-daemon", "eternity-supervise quickshell -c eternity", "hypridle -c /usr/share/eternity/hypridle.conf", "/usr/libexec/polkit-mate-authentication-agent-1", "eternity-firstrun --autostart"]))
     tpl = string.Template(open(os.path.join(SHARE, "hyprland.base.conf"), encoding="utf-8").read())
     return tpl.substitute(
-        scale=_fmt_scale(float(lay.get("scale", 1.25))),
+        scale=_fmt_scale(float(lay.get("scale", 1.25))), panel=str(lay.get("panel", "eDP-1")), external_scale=_fmt_scale(float(lay.get("external_scale", 1.0))),
         accent=c["accent"][1:], n800=c["n800"][1:], bg=c["bg"][1:],
         gaps_in=int(lay.get("gaps", 12)) // 2, gaps_out=int(lay.get("gaps", 12)),
         border=int(lay.get("border", 1)), rounding=int(lay.get("rounding", 8)),

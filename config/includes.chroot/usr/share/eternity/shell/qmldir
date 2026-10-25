@@ -8,6 +8,7 @@ StripContent 1.0 StripContent.qml
 SystemClockFallback 1.0 SystemClockFallback.qml
 Strip 1.0 Strip.qml
 Dump 1.0 Dump.qml
+singleton Latency 1.0 Latency.qml
 Core 1.0 Core.qml
 Card 1.0 Card.qml
 Hud 1.0 Hud.qml

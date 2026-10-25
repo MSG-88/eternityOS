@@ -1,0 +1,15 @@
+#!/bin/sh
+# Keep a session process alive: eternity-supervise <command...>. Restarts it when it exits
+# (1 s pause; gives up after 20 exits inside a minute so a broken binary does not spin).
+# Used by the generated Hyprland config for eternity-daemon and the Quickshell shell.
+[ $# -gt 0 ] || { echo "usage: eternity-supervise <command...>" >&2; exit 2; }
+fails=0; window=$(date +%s)
+while :; do
+    "$@"
+    rc=$?
+    now=$(date +%s)
+    if [ $((now - window)) -gt 60 ]; then fails=0; window=$now; fi
+    fails=$((fails + 1))
+    [ $fails -ge 20 ] && { echo "eternity-supervise: $1 exited $fails times in a minute (last rc $rc); giving up" >&2; exit 1; }
+    sleep 1
+done

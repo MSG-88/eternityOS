@@ -23,7 +23,7 @@ class TestHook(unittest.TestCase):
         self.log = os.path.join(self.home, ".local", "state", "eternity", "actions.log")
 
     def run_hook(self, payload):
-        return subprocess.run(["sh", HOOK], input=json.dumps(payload), capture_output=True, text=True, env=self.env, timeout=30)
+        return subprocess.run([HOOK], input=json.dumps(payload), capture_output=True, text=True, env=self.env, timeout=30)   # executed as Claude Code does
 
     def entries(self):
         try:
@@ -51,7 +51,7 @@ class TestHook(unittest.TestCase):
         self.assertEqual(e[0]["decision"], "denied (privilege escalation)")
 
     def test_garbage_input_does_not_block(self):
-        r = subprocess.run(["sh", HOOK], input="not json", capture_output=True, text=True, env=self.env, timeout=30)
+        r = subprocess.run([HOOK], input="not json", capture_output=True, text=True, env=self.env, timeout=30)
         self.assertEqual(r.returncode, 0)
 
 

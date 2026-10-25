@@ -111,4 +111,14 @@ render 1536 864 lock-backoff && check lock-backoff 'd["failures"] == 5 and d["ba
 render 1536 864 lock-pin && check lock-pin 'd["mode"] == "pin" and it["field_placeholder"][4] == "PIN"' "PIN chip switches the field to PIN"
 [ -f "$OUT/lock/lock.png" ] && ok "lock.png written" || bad "lock.png missing"
 
+# branch review fixes (2026-10-25): tests that drive the real code paths
+render 1536 864 lock-backoff-submit && check lock-backoff-submit 'd["failures"] == 5 and d["backoff_ms"] == 30000 and d["locked"] is True and d["submits"] == 5' "5 wrong submits through LockContent.submit(): 30 s backoff"
+render 1536 864 consent-queue && check consent-queue 'd["consent_id"] == "c2" and d["queue_len"] == 0 and d["answered"] == ["c1:false"]' "two consents queue; declining the first shows the second"
+render 1536 864 consent-wrong-pin && check consent-wrong-pin 'd["consent_id"] == "c2" and d["consent_message"].find("PIN") >= 0 and d["pin_visible"] is True' "a wrong PIN keeps the dialog open with a message"
+render 1536 864 consent-closed && check consent-closed 'd["consent_id"] == "" and d["queue_len"] == 0' "consent.closed removes the dialog"
+render 1536 864 consent-dismiss && check consent-dismiss 'd["answered"] == ["c1:false"] and d["consent_id"] == ""' "Esc/outside click declines the pending consent explicitly"
+render 1920 1080 rescale && check rescale 'near(k, 0.8, 0.001) and near(it["strip"][3], 44*0.8, 1)' "scale change at runtime re-lays out (1920x1080 -> 1536x864: k 0.8)"
+render 1536 864 screens && check screens 'd["panel_edp"] is True and d["panel_hdmi"] is False and d["panel_only_hdmi"] is True' "the presence lives on the laptop panel (or the only screen)"
+render 1536 864 latency && check latency 'd["lat_count"] == 20 and near(d["lat_p95"], 19, 1) and d["lat_file"].endswith("/eternity/latency.json")' "latency samples: p95 of 20 samples"
+
 if [ $fail = 0 ]; then echo "SHELL RENDER: PASS"; else echo "SHELL RENDER: FAIL (artifacts in $OUT)"; exit 1; fi

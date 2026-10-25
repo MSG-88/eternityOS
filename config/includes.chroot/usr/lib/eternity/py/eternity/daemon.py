@@ -11,11 +11,19 @@ line:
     event     {"event": "ask.text", "data": {...}}      (to clients that sent "subscribe")
 
 Socket: $XDG_RUNTIME_DIR/eternity/daemon.sock (override ETERNITY_SOCK), mode 0600, and every
-connection's SO_PEERCRED uid must be ours. Methods: subscribe, state.get, cards.get,
+connection's SO_PEERCRED uid must be ours. Methods: ping, subscribe, state.get, cards.get,
 metrics.sample, settings.get, settings.set, ask.start, ask.cancel, ask.undo, ask.show,
-consent.reply, session.lock, session.lock_info, pin.verify, hw.summary, launcher.index.
-Standard library only.
+consent.reply, consent.ask, session.lock, session.locked, session.unlocked, session.lock_info,
+pin.verify, hw.summary, launcher.index, claude.sessions, claude.resume.
+
+Robustness rules (branch review 2026-10-25): a bad line never ends the loop; writes go through
+a per-connection queue drained by the selector (a client that stops reading is dropped, never
+left with half a line); the PIN requirement of a consent is decided by the daemon only;
+`session.lock` succeeds only when the shell acknowledges the lock; a shell that connects while
+a lock or a consent is pending is told about it; settings are re-read from disk when another
+process wrote them. Standard library only.
 """
+import collections
 import datetime as _dt
 import json
 import os
@@ -25,7 +33,7 @@ import struct
 import threading
 import time
 import uuid
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Deque, Dict, List, Optional
 
 from . import actions as A
 from . import agent as G
@@ -34,8 +42,14 @@ from . import providers as P
 from . import settings as S
 
 CONSENT_TIMEOUT_S = 600
-SETTABLE = ("verbosity", "proactive", "voice", "trust_level", "name", "provider", "on_device_only", "claude_code_model",
-            "local_model", "hotkey", "agent_mode", "unlock_methods", "anthropic_model", "openai_model")
+LOCK_ACK_S = 5.0
+OUTQ_CAP_BYTES = 4 * 1024 * 1024
+INBUF_CAP_BYTES = 1024 * 1024
+# What a client may change over the socket. Credentials (unlock methods) and the trust level are
+# changed only through the Settings app, which writes the file: a process that can reach the
+# socket must not be able to lower the bar for its own actions.
+SETTABLE = ("verbosity", "proactive", "voice", "name", "provider", "on_device_only", "claude_code_model", "claude_code_allow",
+            "local_model", "hotkey", "agent_mode", "anthropic_model", "openai_model")
 
 
 class DaemonError(Exception):
@@ -100,8 +114,20 @@ class Client:
             pass
 
 
-def available(sock_path: Optional[str] = None) -> bool:
-    return os.path.exists(sock_path or default_sock_path())
+def available(sock_path: Optional[str] = None, probe: bool = True) -> bool:
+    """True when a daemon answers on the socket (a stale socket file does not count)."""
+    path = sock_path or default_sock_path()
+    if not os.path.exists(path):
+        return False
+    if not probe:
+        return True
+    try:
+        c = Client(path, timeout=2.0)
+        c.call("ping")
+        c.close()
+        return True
+    except (OSError, DaemonError, ValueError):
+        return False
 
 
 def request_consent(tool: A.Tool, args: dict, need_pin: bool, sock_path: Optional[str] = None) -> bool:
@@ -118,26 +144,38 @@ def request_consent(tool: A.Tool, args: dict, need_pin: bool, sock_path: Optiona
 # ----------------------------------------------------------------------------- daemon
 class Daemon:
     def __init__(self, provider_factory: Optional[Callable[[S.Settings], P.Provider]] = None, sock_path: Optional[str] = None,
-                 cfg: Optional[S.Settings] = None, tick_s: float = 1.0, allowed_uid: Optional[int] = None):
+                 cfg: Optional[S.Settings] = None, tick_s: float = 1.0, allowed_uid: Optional[int] = None, lock_ack_s: float = LOCK_ACK_S):
         self.provider_factory = provider_factory
         self.sock_path = sock_path or default_sock_path()
         self.cfg = cfg or S.load()
+        self._cfg_mtime = self._settings_mtime()
         self.tick_s = tick_s
+        self.lock_ack_s = lock_ack_s
         self.allowed_uid = os.getuid() if allowed_uid is None else allowed_uid
         self.ready = threading.Event()
         self._stop = threading.Event()
         self.subscribers: List[socket.socket] = []
         self.send_lock = threading.Lock()
+        self._outq: Dict[socket.socket, Deque[bytes]] = {}
+        self._outq_bytes: Dict[socket.socket, int] = {}
+        self._wake_r, self._wake_w = socket.socketpair()
+        self._wake_r.setblocking(False)
         self.consents: Dict[str, dict] = {}
         self.run: Optional[dict] = None
         self.agent: Optional[G.Agent] = None
+        self.locked = False
+        self._lock_event = threading.Event()
         self.methods: Dict[str, Callable[[dict], object]] = {
-            "subscribe": self.m_subscribe, "state.get": self.m_state, "cards.get": self.m_cards, "metrics.sample": self.m_metrics,
+            "ping": lambda p: {}, "subscribe": self.m_subscribe, "state.get": self.m_state, "cards.get": self.m_cards, "metrics.sample": self.m_metrics,
             "settings.get": self.m_settings_get, "settings.set": self.m_settings_set, "ask.start": self.m_ask_start,
             "ask.cancel": self.m_ask_cancel, "ask.undo": self.m_ask_undo, "ask.show": self.m_ask_show, "consent.reply": self.m_consent_reply,
-            "consent.ask": self.m_consent_ask, "session.lock": self.m_lock, "session.lock_info": self.m_lock_info, "pin.verify": self.m_pin,
+            "consent.ask": self.m_consent_ask, "session.lock": self.m_lock, "session.locked": self.m_locked, "session.unlocked": self.m_unlocked,
+            "session.lock_info": self.m_lock_info, "pin.verify": self.m_pin,
             "hw.summary": self.m_hw, "launcher.index": self.m_launcher, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
         }
+        # methods answered on a worker thread because they block on the user or on slow probes
+        self.slow_methods = {"consent.ask", "session.lock", "state.get", "cards.get", "metrics.sample", "hw.summary", "pin.verify",
+                             "consent.reply", "ask.undo", "launcher.index", "claude.resume"}
 
     # -- transport ------------------------------------------------------------------
     def serve_forever(self) -> None:
@@ -152,63 +190,164 @@ class Daemon:
         srv.listen(16)
         srv.setblocking(False)
         sel = selectors.DefaultSelector()
-        sel.register(srv, selectors.EVENT_READ, data=None)
+        sel.register(srv, selectors.EVENT_READ, data="server")
+        sel.register(self._wake_r, selectors.EVENT_READ, data="wake")
         buffers: Dict[socket.socket, bytes] = {}
         if self.tick_s > 0:
             threading.Thread(target=self._ticker, daemon=True).start()
         self.ready.set()
-        while not self._stop.is_set():
-            for key, _mask in sel.select(timeout=0.2):
-                if key.data is None:
-                    conn, _ = srv.accept()
-                    if _peer_uid(conn) not in (None, self.allowed_uid) or (_peer_uid(conn) is None and os.name == "posix"):
-                        conn.close()
-                        continue
-                    conn.setblocking(False)
-                    buffers[conn] = b""
-                    sel.register(conn, selectors.EVENT_READ, data="client")
-                    continue
-                conn = key.fileobj
-                try:
-                    chunk = conn.recv(65536)
-                except (BlockingIOError, InterruptedError):
-                    continue
-                except OSError:
-                    chunk = b""
-                if not chunk:
-                    sel.unregister(conn)
-                    buffers.pop(conn, None)
-                    with self.send_lock:
-                        if conn in self.subscribers:
-                            self.subscribers.remove(conn)
-                    conn.close()
-                    continue
-                buffers[conn] += chunk
-                while b"\n" in buffers[conn]:
-                    line, buffers[conn] = buffers[conn].split(b"\n", 1)
-                    self._handle_line(conn, line)
-        sel.close()
-        srv.close()
         try:
-            os.unlink(self.sock_path)
+            while not self._stop.is_set():
+                try:
+                    events = sel.select(timeout=0.2)
+                except (OSError, ValueError):
+                    continue
+                for key, mask in events:
+                    try:
+                        self._serve_one(sel, srv, buffers, key, mask)
+                    except Exception:  # noqa: BLE001  (never let one connection end the loop)
+                        conn = key.fileobj
+                        if conn is not srv and conn is not self._wake_r:
+                            self._drop(sel, buffers, conn)
+        finally:
+            for conn in list(buffers):
+                self._drop(sel, buffers, conn)
+            sel.close()
+            srv.close()
+            try:
+                os.unlink(self.sock_path)
+            except OSError:
+                pass
+
+    def _serve_one(self, sel, srv, buffers, key, mask) -> None:
+        if key.data == "server":
+            conn, _ = srv.accept()
+            if _peer_uid(conn) != self.allowed_uid:
+                conn.close()
+                return
+            conn.setblocking(False)
+            buffers[conn] = b""
+            with self.send_lock:
+                self._outq[conn] = collections.deque()
+                self._outq_bytes[conn] = 0
+            sel.register(conn, selectors.EVENT_READ, data="client")
+            return
+        if key.data == "wake":
+            try:
+                self._wake_r.recv(4096)
+            except (BlockingIOError, OSError):
+                pass
+            self._rearm_writers(sel)
+            return
+        conn = key.fileobj
+        if mask & selectors.EVENT_WRITE:
+            if not self._flush(sel, conn):
+                self._drop(sel, buffers, conn)
+                return
+        if mask & selectors.EVENT_READ:
+            try:
+                chunk = conn.recv(65536)
+            except (BlockingIOError, InterruptedError):
+                return
+            except OSError:
+                chunk = b""
+            if not chunk:
+                self._drop(sel, buffers, conn)
+                return
+            buffers[conn] += chunk
+            if len(buffers[conn]) > INBUF_CAP_BYTES:
+                self._drop(sel, buffers, conn)
+                return
+            while b"\n" in buffers[conn]:
+                line, buffers[conn] = buffers[conn].split(b"\n", 1)
+                try:
+                    self._handle_line(conn, line)
+                except Exception as e:  # noqa: BLE001
+                    self._send(conn, {"id": None, "error": f"{type(e).__name__}: {e}"})
+
+    def _drop(self, sel, buffers, conn) -> None:
+        try:
+            sel.unregister(conn)
+        except (KeyError, ValueError):
+            pass
+        buffers.pop(conn, None)
+        with self.send_lock:
+            if conn in self.subscribers:
+                self.subscribers.remove(conn)
+            self._outq.pop(conn, None)
+            self._outq_bytes.pop(conn, None)
+        try:
+            conn.close()
         except OSError:
             pass
+
+    def _rearm_writers(self, sel) -> None:
+        with self.send_lock:
+            pending = [c for c, q in self._outq.items() if q]
+        for conn in pending:
+            try:
+                sel.modify(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, data="client")
+            except (KeyError, ValueError):
+                pass
+
+    def _flush(self, sel, conn) -> bool:
+        """Write what is queued for `conn`; False when the connection is dead."""
+        with self.send_lock:
+            q = self._outq.get(conn)
+            if q is None:
+                return False
+            while q:
+                data = q[0]
+                try:
+                    n = conn.send(data)
+                except (BlockingIOError, InterruptedError):
+                    break
+                except OSError:
+                    return False
+                self._outq_bytes[conn] -= n
+                if n < len(data):
+                    q[0] = data[n:]
+                    break
+                q.popleft()
+            empty = not q
+        if empty:
+            try:
+                sel.modify(conn, selectors.EVENT_READ, data="client")
+            except (KeyError, ValueError):
+                pass
+        return True
 
     def stop(self) -> None:
         self._stop.set()
 
     def _send(self, conn: socket.socket, obj: dict) -> None:
+        """Queue one line for a connection; the selector thread writes it. A client that lets
+        OUTQ_CAP_BYTES pile up is cut off (it reconnects and resubscribes)."""
         data = (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
         with self.send_lock:
-            try:
-                conn.sendall(data)
-            except OSError:
+            q = self._outq.get(conn)
+            if q is None:
+                return
+            if self._outq_bytes.get(conn, 0) + len(data) > OUTQ_CAP_BYTES:
+                q.clear()
+                self._outq_bytes[conn] = 0
                 if conn in self.subscribers:
                     self.subscribers.remove(conn)
+                try:
+                    conn.shutdown(socket.SHUT_RDWR)     # the selector sees EOF and drops it
+                except OSError:
+                    pass
+                return
+            q.append(data)
+            self._outq_bytes[conn] = self._outq_bytes.get(conn, 0) + len(data)
+        try:
+            self._wake_w.send(b"x")
+        except OSError:
+            pass
 
-    def emit(self, event: str, data: dict) -> None:
+    def emit(self, event: str, data: dict, only: Optional[socket.socket] = None) -> None:
         with self.send_lock:
-            subs = list(self.subscribers)
+            subs = [only] if only is not None else list(self.subscribers)
         for conn in subs:
             self._send(conn, {"event": event, "data": data})
 
@@ -217,19 +356,34 @@ class Daemon:
             req = json.loads(line.decode("utf-8"))
         except ValueError:
             return
-        rid, method, params = req.get("id"), req.get("method", ""), req.get("params") or {}
+        if not isinstance(req, dict):
+            return
+        rid, method, params = req.get("id"), req.get("method", ""), req.get("params")
+        if not isinstance(method, str):
+            self._send(conn, {"id": rid, "error": "method must be a string"})
+            return
+        if not isinstance(params, dict):
+            params = {}
         fn = self.methods.get(method)
         if fn is None:
             self._send(conn, {"id": rid, "error": f"unknown method {method}"})
             return
         if method == "subscribe":
             with self.send_lock:
-                self.subscribers.append(conn)
+                if conn not in self.subscribers:
+                    self.subscribers.append(conn)
             self._send(conn, {"id": rid, "result": {}})
+            self._replay(conn)
             return
         if method == "consent.ask":
             threading.Thread(target=self._consent_ask_async, args=(conn, rid, params), daemon=True).start()
             return
+        if method in self.slow_methods:
+            threading.Thread(target=self._answer, args=(conn, rid, fn, params), daemon=True).start()
+            return
+        self._answer(conn, rid, fn, params)
+
+    def _answer(self, conn, rid, fn, params) -> None:
         try:
             result = fn(params)
             self._send(conn, {"id": rid, "result": result})
@@ -238,23 +392,68 @@ class Daemon:
         except Exception as e:  # noqa: BLE001  (a method must never take the daemon down)
             self._send(conn, {"id": rid, "error": f"{type(e).__name__}: {e}"})
 
+    def _replay(self, conn) -> None:
+        """A shell that (re)connects learns what is pending: the lock and open consents."""
+        if self.locked:
+            self.emit("session.lock", {"replay": True}, only=conn)
+        for entry in list(self.consents.values()):
+            if not entry["event"].is_set():
+                self.emit("consent.request", dict(entry["request"], replay=True), only=conn)
+
     def _ticker(self) -> None:
         while not self._stop.wait(self.tick_s):
             if self.subscribers:
-                self.emit("metrics.sample", self.m_metrics({}))
+                try:
+                    self.emit("metrics.sample", self.m_metrics({}))
+                except Exception:  # noqa: BLE001
+                    pass
 
-    # -- state -----------------------------------------------------------------------
+    # -- settings ------------------------------------------------------------------------
+    def _settings_mtime(self) -> float:
+        try:
+            return os.stat(S.settings_path()).st_mtime
+        except OSError:
+            return 0.0
+
+    def _fresh_cfg(self) -> S.Settings:
+        """Re-read settings.json when another process (the Settings app) wrote it."""
+        mtime = self._settings_mtime()
+        if mtime and mtime != self._cfg_mtime:
+            self.cfg = S.load()
+            self.agent = None
+            self._cfg_mtime = mtime
+        return self.cfg
+
     def m_subscribe(self, params: dict) -> dict:
         return {}
 
+    def m_settings_get(self, params: dict) -> dict:
+        from dataclasses import asdict
+        return asdict(self._fresh_cfg())
+
+    def m_settings_set(self, params: dict) -> dict:
+        key, value = params.get("key"), params.get("value")
+        if key not in SETTABLE:
+            raise DaemonError(f"setting '{key}' cannot be changed here")
+        cfg = self._fresh_cfg()
+        setattr(cfg, key, value)
+        cfg.validate()                     # coerces bad values back to safe ones, never raises
+        S.save(cfg)
+        self._cfg_mtime = self._settings_mtime()
+        self.agent = None   # provider may have changed
+        self.emit("settings.changed", {"key": key, "value": getattr(cfg, key)})
+        return {key: getattr(cfg, key)}
+
+    # -- state -----------------------------------------------------------------------
     def m_state(self, params: dict) -> dict:
+        cfg = self._fresh_cfg()
         now = _dt.datetime.now()
         mem = C.memory()
         lat = C.latency_sample()
         return {"clock": now.strftime("%H:%M"), "date": now.strftime("%A %d %B"), "battery": C.battery(), "network": C.network(),
-                "ai": C.ai_status(self.cfg), "memory": mem, "cpu": C.cpu_percent(), "latency_ms": (lat or {}).get("latency_ms"),
-                "live": C.live_session(), "user_name": self.cfg.name, "notifications_held": 0, "uptime": C.uptime_text(),
-                "provider": self.cfg.effective_provider()}
+                "ai": C.ai_status(cfg), "memory": mem, "cpu": C.cpu_percent(), "latency_ms": (lat or {}).get("latency_ms"),
+                "live": C.live_session(), "user_name": cfg.name, "notifications_held": 0, "uptime": C.uptime_text(),
+                "provider": cfg.effective_provider(), "locked": self.locked}
 
     def m_cards(self, params: dict) -> dict:
         from . import theme
@@ -267,6 +466,7 @@ class Daemon:
         return {"cards": out}
 
     def _card(self, cid: str) -> Optional[dict]:
+        cfg = self._fresh_cfg()
         if cid == "today":
             t = C.today()
             return {"id": cid, "kicker": "Today", "title": t.get("weekday", ""), "body": t.get("date", ""), "meta": C.uptime_text(), "actions": []}
@@ -275,10 +475,11 @@ class Daemon:
             body = f"memory {mem.get('used_gb', 0):.1f} of {mem.get('total_gb', 0):.1f} GB"
             if cpu is not None:
                 body += f" · cpu {cpu:.0f}%"
-            meta = (f"battery {bat['percent']}%" + (" · charging" if bat.get("charging") else "")) if bat else C.network()
-            return {"id": cid, "kicker": "System", "title": C.network() or "this device", "body": body, "meta": meta, "actions": ["monitor"]}
+            net = C.network()
+            meta = (f"battery {bat['percent']}%" + (" · charging" if bat.get("charging") else "")) if bat else net
+            return {"id": cid, "kicker": "System", "title": net or "this device", "body": body, "meta": meta, "actions": ["monitor"]}
         if cid == "eternity":
-            ai = C.ai_status(self.cfg)
+            ai = C.ai_status(cfg)
             n = C.actions_today()
             return {"id": cid, "kicker": "Eternity", "title": ai["label"], "body": (ai.get("readout") or ("warm" if ai.get("warm") else "ready")) + (f" · {ai['model']}" if ai.get("model") else ""),
                     "meta": f"{n} action{'s' if n != 1 else ''} today", "actions": ["ask"]}
@@ -291,11 +492,7 @@ class Daemon:
             if not C.live_session():
                 return None
             return {"id": cid, "kicker": "Live session", "title": "Install Eternity 08", "body": "Keep everything: install next to Windows or on the whole disk.", "meta": "eternity-install", "actions": ["install"]}
-        if cid == "focus":
-            return None   # notifications are held by the daemon in slice 2
-        if cid == "nowplaying":
-            return None   # MPRIS in slice 2
-        return None
+        return None   # focus / nowplaying: slice 2 (notifications, MPRIS)
 
     def m_metrics(self, params: dict) -> dict:
         lat = C.latency_sample() or {}
@@ -311,25 +508,12 @@ class Daemon:
         return {"cpu": C.cpu_percent(), "mem_gb": mem.get("used_gb"), "ai_tps": tps, "latency_ms": lat.get("latency_ms"),
                 "dropped_frames": lat.get("dropped_frames")}
 
-    def m_settings_get(self, params: dict) -> dict:
-        from dataclasses import asdict
-        return asdict(self.cfg)
-
-    def m_settings_set(self, params: dict) -> dict:
-        key, value = params.get("key"), params.get("value")
-        if key not in SETTABLE:
-            raise DaemonError(f"setting '{key}' cannot be changed here")
-        setattr(self.cfg, key, value)
-        S.save(self.cfg)
-        self.agent = None   # provider may have changed
-        self.emit("settings.changed", {"key": key, "value": getattr(self.cfg, key)})
-        return {key: getattr(self.cfg, key)}
-
     # -- assistant ---------------------------------------------------------------------
     def _make_agent(self) -> G.Agent:
+        cfg = self._fresh_cfg()
         if self.agent is None:
-            provider = self.provider_factory(self.cfg) if self.provider_factory else None
-            self.agent = G.Agent(self._consent, cfg=self.cfg, provider=provider)
+            provider = self.provider_factory(cfg) if self.provider_factory else None
+            self.agent = G.Agent(self._consent, cfg=cfg, provider=provider)
         return self.agent
 
     def m_ask_start(self, params: dict) -> dict:
@@ -385,61 +569,69 @@ class Daemon:
 
     # -- consent ----------------------------------------------------------------------
     def _need_pin(self, tool: A.Tool) -> bool:
-        return tool.risk == A.RISK_DANGEROUS and "pin" in self.cfg.unlock_methods and os.path.exists(os.path.join(S.config_dir(), "pin.json"))
+        cfg = self._fresh_cfg()
+        return tool.risk == A.RISK_DANGEROUS and "pin" in cfg.unlock_methods and os.path.exists(os.path.join(S.config_dir(), "pin.json"))
 
     def _consent(self, tool: A.Tool, args: dict) -> bool:
         return self._consent_request(tool.name, tool.risk, A.describe_call(tool, args), self._need_pin(tool))
 
     def _consent_request(self, tool: str, risk: str, description: str, need_pin: bool) -> bool:
         cid = uuid.uuid4().hex[:12]
-        entry = {"event": threading.Event(), "ok": False, "need_pin": need_pin}
+        request = {"consent_id": cid, "tool": tool, "risk": risk, "description": description, "need_pin": need_pin,
+                   "run_id": self.run["id"] if self.run else None}
+        entry = {"event": threading.Event(), "ok": False, "need_pin": need_pin, "request": request}
         self.consents[cid] = entry
-        self.emit("consent.request", {"consent_id": cid, "tool": tool, "risk": risk, "description": description, "need_pin": need_pin,
-                                      "run_id": self.run["id"] if self.run else None})
-        entry["event"].wait(CONSENT_TIMEOUT_S)
+        self.emit("consent.request", request)
+        answered = entry["event"].wait(CONSENT_TIMEOUT_S)
         self.consents.pop(cid, None)
+        self.emit("consent.closed", {"consent_id": cid, "ok": bool(entry["ok"]), "reason": "answered" if answered else "timeout"})
         return bool(entry["ok"])
 
     def m_consent_reply(self, params: dict) -> dict:
         cid = str(params.get("consent_id", ""))
         entry = self.consents.get(cid)
-        if entry is None:
+        if entry is None or entry["event"].is_set():
             raise DaemonError("unknown or expired consent")
         ok = bool(params.get("ok"))
-        if ok and params.get("need_pin", True) and self._pin_required_for(cid):
+        if ok and entry["need_pin"]:                 # the daemon decides whether a PIN is needed, never the caller
             from .ui.firstrun import verify_pin
-            ok = verify_pin(str(params.get("pin", "")))
+            if not verify_pin(str(params.get("pin", ""))):
+                return {"ok": False, "pin": "wrong", "consent_id": cid}   # stays open: the dialog asks again
         entry["ok"] = ok
         entry["event"].set()
-        return {"ok": ok}
-
-    def _pin_required_for(self, cid: str) -> bool:
-        return bool(self.consents.get(cid, {}).get("need_pin"))
+        return {"ok": ok, "consent_id": cid}
 
     def m_consent_ask(self, params: dict) -> dict:
-        # handled asynchronously in _consent_ask_async (blocks until the user answers)
-        raise DaemonError("internal")
+        raise DaemonError("internal")   # answered asynchronously by _consent_ask_async
 
     def _consent_ask_async(self, conn: socket.socket, rid, params: dict) -> None:
         tool, risk = str(params.get("tool", "tool")), str(params.get("risk", A.RISK_DANGEROUS))
-        need_pin = bool(params.get("need_pin"))
-        cid = uuid.uuid4().hex[:12]
-        entry = {"event": threading.Event(), "ok": False, "need_pin": need_pin}
-        self.consents[cid] = entry
-        self.emit("consent.request", {"consent_id": cid, "tool": tool, "risk": risk, "description": str(params.get("description", "")),
-                                      "need_pin": need_pin, "run_id": None})
-        entry["event"].wait(CONSENT_TIMEOUT_S)
-        self.consents.pop(cid, None)
-        self._send(conn, {"id": rid, "result": {"ok": bool(entry["ok"])}})
+        ok = self._consent_request(tool, risk, str(params.get("description", "")), bool(params.get("need_pin")))
+        self._send(conn, {"id": rid, "result": {"ok": ok}})
 
     # -- session ----------------------------------------------------------------------
     def m_lock(self, params: dict) -> dict:
+        """Ask the shell to lock and wait for its acknowledgement; {"locked": bool}."""
+        if self.locked:
+            return {"locked": True}
+        self._lock_event.clear()
         self.emit("session.lock", {})
-        return {}
+        self._lock_event.wait(self.lock_ack_s)
+        return {"locked": self.locked}
+
+    def m_locked(self, params: dict) -> dict:
+        self.locked = True
+        self._lock_event.set()
+        return {"locked": True}
+
+    def m_unlocked(self, params: dict) -> dict:
+        self.locked = False
+        return {"locked": False}
 
     def m_lock_info(self, params: dict) -> dict:
-        return {"greeting": greeting_for_hour(_dt.datetime.now().hour), "name": self.cfg.name, "since_count": self._since_count(),
-                "pin_available": "pin" in self.cfg.unlock_methods and os.path.exists(os.path.join(S.config_dir(), "pin.json"))}
+        cfg = self._fresh_cfg()
+        return {"greeting": greeting_for_hour(_dt.datetime.now().hour), "name": cfg.name, "since_count": self._since_count(),
+                "pin_available": "pin" in cfg.unlock_methods and os.path.exists(os.path.join(S.config_dir(), "pin.json")), "locked": self.locked}
 
     def _since_count(self) -> int:
         path = os.path.join(S.state_dir(), "notifications.jsonl")
@@ -453,18 +645,6 @@ class Daemon:
         from .ui.firstrun import verify_pin
         return {"ok": verify_pin(str(params.get("pin", "")))}
 
-    def m_claude_sessions(self, params: dict) -> dict:
-        return {"sessions": P.claude_code_sessions(int(params.get("limit", 20)))}
-
-    def m_claude_resume(self, params: dict) -> dict:
-        agent = self._make_agent()
-        prov = agent.provider
-        if not hasattr(prov, "resume"):
-            raise DaemonError("the current assistant has no sessions to resume")
-        prov.resume(str(params.get("session_id", "")) or None)
-        agent.reset()
-        return {"session_id": prov.session_id}
-
     def m_hw(self, params: dict) -> dict:
         from . import hw
         inv = hw.inventory()
@@ -477,6 +657,18 @@ class Daemon:
         rows = [{"name": a.name, "exec": a.exec, "icon": getattr(a, "icon", ""), "id": getattr(a, "id", a.name)} for a in apps
                 if not q or q in a.name.lower()]
         return {"apps": rows[: int(params.get("limit", 60))]}
+
+    def m_claude_sessions(self, params: dict) -> dict:
+        return {"sessions": P.claude_code_sessions(int(params.get("limit", 20)))}
+
+    def m_claude_resume(self, params: dict) -> dict:
+        agent = self._make_agent()
+        prov = agent.provider
+        if not hasattr(prov, "resume"):
+            raise DaemonError("the current assistant has no sessions to resume")
+        prov.resume(str(params.get("session_id", "")) or None)
+        agent.reset()
+        return {"session_id": prov.session_id}
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -492,6 +684,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         d.serve_forever()
     except KeyboardInterrupt:
         pass
+    except Exception as e:  # noqa: BLE001
+        print(f"eternity-daemon: {type(e).__name__}: {e}", file=sys.stderr)
+        return 1
     return 0
 
 

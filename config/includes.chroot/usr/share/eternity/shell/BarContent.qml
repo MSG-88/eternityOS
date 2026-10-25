@@ -19,6 +19,9 @@ Item {
     property var actions: []
     property var consentQueue: []
     property var consent: null
+    property string consentMessage: ""
+    property var answered: []          // test support: consent ids answered, "id" or "id:false"
+    property bool handlesConsent: true  // only the panel screen's bar shows consents and ask.show
     signal dismissed()
     signal submitted(string text)
     readonly property bool focused: active && input.activeFocus
@@ -56,6 +59,7 @@ Item {
             enabled: root.active
             onAccepted: root.submit()
             Keys.onEscapePressed: root.dismiss()
+            Keys.onPressed: event => { if (event.text !== "") Latency.keyPressed(); }
             cursorDelegate: Rectangle { width: 2 * root.k; height: input.font.pixelSize; color: Theme.accent; visible: input.activeFocus
                 SequentialAnimation on opacity { running: visible; loops: Animation.Infinite; NumberAnimation { from: 1; to: 0; duration: 400 } NumberAnimation { from: 0; to: 1; duration: 400 } } }
         }
@@ -150,6 +154,7 @@ Item {
         visible: root.consent !== null
         k: root.k
         request: root.consent || ({})
+        message: root.consentMessage
         anchors.centerIn: parent
         onReply: (ok, pin) => root.answerConsent(ok, pin)
     }
@@ -160,7 +165,10 @@ Item {
         if (text) input.text = text;
         input.forceActiveFocus();
     }
-    function dismiss() { root.active = false; input.text = ""; root.dismissed(); }
+    function dismiss() {
+        if (root.consent) { root.answerConsent(false, ""); return; }   // Esc / click outside = an explicit "Not now"
+        root.active = false; input.text = ""; root.dismissed();
+    }
     function submit() {
         const text = input.text.trim();
         if (text === "" || root.streaming) return;
@@ -187,8 +195,22 @@ Item {
     }
     function appendStatus(text) { root.statusText = text; }
     function applyEvent(name, data) {
-        if (name === "ask.show") { root.show(data && data.text ? data.text : ""); return; }
-        if (name === "consent.request") { const q = root.consentQueue.slice(); q.push(data); root.consentQueue = q; if (!root.consent) root.nextConsent(); if (!root.active) root.active = true; return; }
+        if (name === "ask.show") { if (root.handlesConsent) root.show(data && data.text ? data.text : ""); return; }
+        if (name === "consent.request") {
+            if (!root.handlesConsent) return;
+            const id = data.consent_id;
+            if ((root.consent && root.consent.consent_id === id) || root.consentQueue.some(c => c.consent_id === id)) return;   // replay of a known one
+            const q = root.consentQueue.slice(); q.push(data); root.consentQueue = q;
+            if (!root.consent) root.nextConsent();
+            if (!root.active) root.active = true;
+            return;
+        }
+        if (name === "consent.closed") {
+            const id = data.consent_id;
+            root.consentQueue = root.consentQueue.filter(c => c.consent_id !== id);
+            if (root.consent && root.consent.consent_id === id) { root.consent = null; root.consentMessage = ""; root.nextConsent(); }
+            return;
+        }
         if (root.runId !== "" && data && data.run_id && data.run_id !== root.runId) return;
         if (name === "ask.text") root.answerText += data.delta;
         else if (name === "ask.status") root.statusText = data.text;
@@ -196,13 +218,19 @@ Item {
         else if (name === "ask.done") { root.streaming = false; root.readoutText = data.readout || ""; root.runId = ""; }
     }
     function nextConsent() {
+        root.consentMessage = "";
         if (root.consentQueue.length === 0) { root.consent = null; input.forceActiveFocus(); return; }
         const q = root.consentQueue.slice(); root.consent = q.shift(); root.consentQueue = q;
         consentDialog.focusInput();
     }
     function answerConsent(ok, pin) {
         const c = root.consent; if (!c) return;
-        Daemon.call("consent.reply", { consent_id: c.consent_id, ok: ok, pin: pin || "" }, null);
+        const a = root.answered.slice(); a.push(ok ? c.consent_id : c.consent_id + ":false"); root.answered = a;
+        if (!Daemon.connected) { root.nextConsent(); return; }       // nobody to answer: the daemon times it out as declined
+        Daemon.call("consent.reply", { consent_id: c.consent_id, ok: ok, pin: pin || "" }, (r, e) => root.handleConsentReply(r, e));
+    }
+    function handleConsentReply(r, e) {
+        if (r && r.ok === false && r.pin === "wrong") { root.consentMessage = "The PIN did not match. Try again."; consentDialog.focusInput(); return; }
         root.nextConsent();
     }
     Connections { target: Daemon; function onEvent(name, data) { root.applyEvent(name, data); } }
@@ -214,5 +242,6 @@ Item {
         const cg = consentDialog.geometry(); out.consent = [consentDialog.x, consentDialog.y, cg.consent[2], cg.consent[3], ""]; out.consent_kicker = cg.consent_kicker;
         return out;
     }
-    function flags() { return { focused: root.focused, active: root.active, ring: ring.visible, caret: caret.visible, thinking: thinking.visible, pin_visible: consentDialog.visible && consentDialog.geometry().pin_visible }; }
+    function flags() { return { focused: root.focused, active: root.active, ring: ring.visible, caret: caret.visible, thinking: thinking.visible, pin_visible: consentDialog.visible && consentDialog.geometry().pin_visible,
+                                consent_id: root.consent ? root.consent.consent_id : "", queue_len: root.consentQueue.length, consent_message: root.consentMessage, answered: root.answered }; }
 }

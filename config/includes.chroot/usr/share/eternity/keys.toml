@@ -1,7 +1,6 @@
 # Eternity 08 — key map (Hyprland bind syntax: MODS, key). Override in ~/.config/eternity/keys.toml.
 [bind]
 ask = "SUPER, space"
-launcher = "SUPER, code:133"
 files = "SUPER, F"
 monitor = "SUPER, M"
 settings = "SUPER, comma"
@@ -20,6 +19,10 @@ lock = "eternity-lock"
 terminal = "xfce4-terminal"
 home = "eternity-shell --home"
 screenshot = "grim -g \"$(slurp)\" - | wl-copy"
+
+# Release binds (fire when the key is released alone: Super by itself opens the launcher)
+[bindr]
+launcher = "SUPER, Super_L"
 
 # Compositor dispatchers (name = Hyprland dispatcher, value = keys)
 [dispatch]

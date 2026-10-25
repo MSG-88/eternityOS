@@ -1,6 +1,8 @@
 # Eternity 08 — layout (design pixels on a 1920x1080 reference; the shell multiplies by
 # k = min(W/1920, H/1080) of the logical output). Override in ~/.config/eternity/layout.toml.
-scale = 1.25                    # output scale (owner: 125 % by default)
+scale = 1.25                    # output scale of the laptop panel (owner: 125 % by default)
+panel = "eDP-1"                 # the built-in panel: it carries the presence; external outputs get the strip and windows
+external_scale = 1.0            # scale of every other output
 strip_height = 44
 bar = [560, 950, 800, 54]       # command bar x, y, w, h
 orbit = [440, 270]              # orbit ellipse radii for the home cards
@@ -9,4 +11,4 @@ border = 1
 rounding = 8
 cards = ["today", "system", "eternity", "recent", "install", "focus", "nowplaying"]
 blur_namespaces = ["eternity-bar", "eternity-lock", "eternity-launcher"]
-exec_once = ["eternity-daemon", "quickshell -c eternity", "hypridle -c /usr/share/eternity/hypridle.conf", "mate-polkit"]
+exec_once = ["eternity-supervise eternity-daemon", "eternity-supervise quickshell -c eternity", "hypridle -c /usr/share/eternity/hypridle.conf", "/usr/libexec/polkit-mate-authentication-agent-1", "eternity-firstrun --autostart"]

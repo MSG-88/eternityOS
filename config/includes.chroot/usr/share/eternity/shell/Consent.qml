@@ -8,6 +8,7 @@ Rectangle {
     property real k: 1
     property var request: ({})          // {consent_id, tool, risk, description, need_pin}
     signal reply(bool ok, string pin)
+    property string message: ""
     readonly property string toolName: (request.tool || "tool").replace(/_/g, " ").toUpperCase()
     readonly property bool needPin: request.need_pin === true
     readonly property string riskText: request.risk === "read" ? "reads information" : request.risk === "dangerous" ? "is a sensitive action" : "changes something on this device"
@@ -24,6 +25,7 @@ Rectangle {
         Text { id: kicker; text: "ALLOW " + root.toolName + "?"; color: Theme.accent; font.family: Theme.body; font.pixelSize: 11 * root.k; font.weight: Font.Medium; font.letterSpacing: 1.3 * root.k }
         Text { text: request.description || ""; color: Theme.text; font.family: Theme.body; font.pixelSize: 15 * root.k; width: parent.width; wrapMode: Text.WordWrap }
         Text { text: "This " + root.riskText + ". It will be logged and, where possible, can be undone."; color: Theme.n500; font.family: Theme.body; font.pixelSize: 12 * root.k; width: parent.width; wrapMode: Text.WordWrap }
+        Text { visible: root.message !== ""; text: root.message; color: Theme.accent300; font.family: Theme.body; font.pixelSize: 12 * root.k; width: parent.width; wrapMode: Text.WordWrap }
         Rectangle {
             id: pinBox
             visible: root.needPin
@@ -47,5 +49,5 @@ Rectangle {
     }
     Keys.onEscapePressed: root.reply(false, "")
     function geometry() { return { consent: [x, y, width, height, ""], consent_kicker: [kicker.x, kicker.y, kicker.width, kicker.height, kicker.text], pin_visible: pinBox.visible }; }
-    function focusInput() { if (root.needPin) pin.forceActiveFocus(); }
+    function focusInput() { if (root.needPin) { pin.text = ""; pin.forceActiveFocus(); } }
 }
