@@ -3,6 +3,12 @@
 # and a build-log line with the versions that went into the image.
 set -e
 chmod 755 /usr/local/bin/eternity-session /usr/local/bin/eternity-lock /usr/local/bin/eternity-supervise /usr/lib/live/config/0032-eternity-session
+# The greeter runs from its own Quickshell config root: copy the shared scene files next to it
+for f in LockContent.qml GreeterContent.qml Theme.qml Geometry.qml Mobius.qml Wordmark.qml SystemClockFallback.qml PamAuth.qml Daemon.qml Latency.qml qmldir; do
+    cp -f /usr/share/eternity/shell/$f /usr/share/eternity/greeter/$f
+done
+mkdir -p /usr/share/eternity/greeter/assets && cp -f /usr/share/eternity/shell/assets/mobius-atlas.png /usr/share/eternity/greeter/assets/
+chmod 755 /usr/local/bin/eternity-greeter
 # Claude Code's PreToolUse hook must be executable or every tool call runs unaudited (review C1)
 chmod 755 /usr/lib/eternity/claude-hook
 mkdir -p /etc/xdg/eternity /etc/xdg/quickshell

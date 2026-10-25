@@ -81,3 +81,6 @@ slurp
 fonts-jetbrains-mono
 # test harness support (XFCE Classic session): raise/minimize windows by name from a typed command
 xdotool
+# The Eternity greeter (greetd runs the unlock scene under cage; kernel switch eternity.greeter=greetd)
+greetd
+cage

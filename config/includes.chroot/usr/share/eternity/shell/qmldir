@@ -21,3 +21,4 @@ Bar 1.0 Bar.qml
 PamAuth 1.0 PamAuth.qml
 LockContent 1.0 LockContent.qml
 Lock 1.0 Lock.qml
+GreeterContent 1.0 GreeterContent.qml

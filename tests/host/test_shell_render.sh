@@ -119,6 +119,15 @@ render 1536 864 consent-closed && check consent-closed 'd["consent_id"] == "" an
 render 1536 864 consent-dismiss && check consent-dismiss 'd["answered"] == ["c1:false"] and d["consent_id"] == ""' "Esc/outside click declines the pending consent explicitly"
 render 1920 1080 rescale && check rescale 'near(k, 0.8, 0.001) and near(it["strip"][3], 44*0.8, 1)' "scale change at runtime re-lays out (1920x1080 -> 1536x864: k 0.8)"
 render 1536 864 screens && check screens 'd["panel_edp"] is True and d["panel_hdmi"] is False and d["panel_only_hdmi"] is True' "the presence lives on the laptop panel (or the only screen)"
+# slice 2: the greeter scene (no personal data before login; accounts + session chooser)
+render 1536 864 greeter && {
+    check greeter 'd["users"] == ["maya", "eternity"] and d["sessions"] == ["Eternity", "Eternity Classic"]' "accounts and sessions listed"
+    check greeter 'd["since_visible"] is False and d["pin_chip_visible"] is False and it["field_placeholder"][4] == "Passphrase"' "no since-line, no PIN, passphrase field"
+    check greeter 'near(it["mark"][0] + it["mark"][2]/2, 960*k, 1) and it["greeting"][4] == "Good evening."' "mark centred, greeting without a name"
+    check greeter 'd["selected_user"] == "maya" and d["selected_session"] == "eternity"' "first account and the Eternity session selected"
+}
+render 1536 864 greeter-fail && check greeter-fail 'd["failures"] == 1 and d["shake"] is True and d["locked"] is True' "a wrong passphrase shakes and stays"
+[ -f "$OUT/greeter/greeter.png" ] && ok "greeter.png written" || bad "greeter.png missing"
 render 1536 864 latency && check latency 'd["lat_count"] == 20 and near(d["lat_p95"], 19, 1) and d["lat_file"].endswith("/eternity/latency.json")' "latency samples: p95 of 20 samples"
 
 if [ $fail = 0 ]; then echo "SHELL RENDER: PASS"; else echo "SHELL RENDER: FAIL (artifacts in $OUT)"; exit 1; fi

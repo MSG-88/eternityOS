@@ -163,6 +163,9 @@ check_session() {
     echo "INFO session: $(Hyprland --version 2>/dev/null | head -1 | cut -c1-60) / $(quickshell --version 2>/dev/null | head -1)" >&2
     HOME=$(mktemp -d) XDG_CONFIG_HOME=$(mktemp -d) eternity-theme render --check || { echo "eternity-theme render --check failed"; return 1; }
     [ -f /usr/share/eternity/shell/shell.qml ] || { echo "shell.qml missing"; return 1; }
+    [ -f /usr/share/eternity/greeter/shell.qml ] && [ -f /usr/share/eternity/greeter/GreeterContent.qml ] || { echo "greeter scene missing"; return 1; }
+    command -v greetd >/dev/null 2>&1 && command -v cage >/dev/null 2>&1 || { echo "greetd/cage missing"; return 1; }
+    [ "$(systemctl is-enabled lightdm 2>/dev/null)" = enabled ] || [ "$(systemctl is-enabled greetd 2>/dev/null)" = enabled ] || { echo "no display manager enabled"; return 1; }
     return 0
 }
 

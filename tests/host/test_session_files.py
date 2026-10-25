@@ -87,6 +87,35 @@ class TestSessionFiles(unittest.TestCase):
         subprocess.run(["sh", "-n", os.path.join(ROOT, "config/includes.chroot/usr/local/bin/eternity-supervise")], check=True)
         subprocess.run(["sh", "-n", os.path.join(ROOT, "config/includes.chroot/usr/local/bin/eternity-lock")], check=True)
 
+    def test_greeter_files(self):
+        """Slice 2 Task 1: greetd + cage run the Eternity unlock scene as the greeter."""
+        pk = read("config/package-lists/desktop.list.chroot")
+        for p in ("greetd", "cage"):
+            self.assertTrue(re.search(rf"^{p}$", pk, re.M), p)
+        cfg = read("config/includes.chroot/etc/greetd/config.toml")
+        self.assertIn("cage -s -- eternity-greeter", cfg)
+        self.assertIn('user = "_greetd"', cfg)
+        g = read("config/includes.chroot/usr/local/bin/eternity-greeter")
+        subprocess.run(["sh", "-n", os.path.join(ROOT, "config/includes.chroot/usr/local/bin/eternity-greeter")], check=True)
+        self.assertIn("users.json", g)
+        self.assertIn("agreety", g)                      # text fallback when the QML greeter dies
+        self.assertIn("quickshell", g)
+        self.assertTrue(os.path.exists(os.path.join(ROOT, "config/includes.chroot/usr/share/eternity/greeter/shell.qml")))
+        hook = read("config/hooks/normal/0460-session.hook.chroot")
+        for f in ("LockContent.qml", "GreeterContent.qml", "Theme.qml", "Geometry.qml", "Mobius.qml", "Wordmark.qml", "SystemClockFallback.qml"):
+            self.assertIn(f, hook)                       # shared scene files copied into the greeter's config root
+
+    def test_greeter_fallback(self):
+        """eternity.greeter=greetd switches the display manager; without it lightdm stays enabled."""
+        s = read("config/includes.chroot/usr/lib/live/config/0032-eternity-session")
+        self.assertIn("eternity.greeter=", s)
+        branch = s[s.index("greetd)"):]
+        self.assertIn("systemctl disable lightdm", branch)
+        self.assertIn("systemctl enable greetd", branch)
+        self.assertNotIn("systemctl disable lightdm", s[:s.index("greetd)")])
+        smoke = read("tests/smoke.sh")
+        self.assertIn("greeter/shell.qml", smoke)
+
     def test_smoke_has_check_session(self):
         s = read("tests/smoke.sh")
         self.assertIn("check_session()", s)

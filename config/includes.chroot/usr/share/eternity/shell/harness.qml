@@ -13,6 +13,7 @@ ShellRoot {
     readonly property real k: Geometry.k(w, h)
     readonly property bool presence: scenario.indexOf("presence") === 0
     readonly property bool lockScene: scenario.indexOf("lock") === 0
+    readonly property bool greeterScene: scenario.indexOf("greeter") === 0
     readonly property bool plainScene: scenario === "screens" || scenario === "latency"
     readonly property bool barScene: scenario.indexOf("bar") === 0 || scenario.indexOf("answer") === 0 || scenario.indexOf("consent") === 0
     readonly property var designCards: [
@@ -35,7 +36,14 @@ ShellRoot {
                 active: root.presence
                 sourceComponent: PresenceContent { k: root.k; cards: root.designCards; animated: false; windowState: root.scenario === "presence-windows" ? "windows" : "empty" }
             }
-            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene }
+            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene && !root.greeterScene }
+            Loader {
+                id: greeterLoader
+                anchors.fill: parent
+                active: root.greeterScene
+                sourceComponent: GreeterContent { k: root.k; users: ["maya", "eternity"]; authFn: (pw, mode, cb) => cb(false) }
+                onLoaded: { if (root.scenario === "greeter-fail") { item.setPassword("wrong"); item.submit(); } }
+            }
             Loader {
                 id: lockLoader
                 anchors.fill: parent
@@ -97,6 +105,7 @@ ShellRoot {
                 if (root.presence) { base.items = presenceLoader.item.geometry(); return base; }
                 if (root.barScene) { base.items = barLoader.item.geometry(); return Object.assign(base, barLoader.item.flags()); }
                 if (root.lockScene) { base.items = lockLoader.item.geometry(); return Object.assign(base, lockLoader.item.flags()); }
+                if (root.greeterScene) { base.items = greeterLoader.item.geometry(); return Object.assign(base, greeterLoader.item.flags()); }
                 base.items = strip.geometry(); return base;
             }
         }
