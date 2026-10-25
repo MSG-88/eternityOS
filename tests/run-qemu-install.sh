@@ -66,8 +66,10 @@ auto)
     "$0" "$ISO" start || exit 1
     U=${ETERNITY_INSTALL_USER:-muthu}; P=${ETERNITY_INSTALL_PASSWORD:-Genesis08-vm}
     Q keys Ctrl-Alt-T; S 6
-    Q keys 'sudo sh -c "tail -n +1 -F /root/.cache/calamares/session.log > /dev/ttyS0"' Enter; S 3
-    Q click 600 108; S 2                       # raise the installer window again
+    # Raise the installer by name and get the terminals out of the way (build 11 resume: a click at
+    # 600,108 landed on a terminal that had opened elsewhere and the user form was typed into it).
+    Q keys '( sleep 2; xdotool search --name "Eternity 08 Installer" windowactivate 2>/dev/null; for w in $(xdotool search --class xfce4-terminal 2>/dev/null); do xdotool windowminimize $w; done ) >/dev/null 2>&1 & sudo sh -c "tail -n +1 -F /root/.cache/calamares/session.log > /dev/ttyS0"' Enter; S 6
+    Q click 600 108; S 2                       # raise the installer window again (fallback when xdotool is absent)
     Q click 1013 745; S 12; Q screendump "$OUT/auto-location.png"
     Q click 1013 745; S 12; Q screendump "$OUT/auto-keyboard.png"
     Q click 1013 745; S 25; Q screendump "$OUT/auto-partitions.png"

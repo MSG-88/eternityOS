@@ -79,3 +79,5 @@ wl-clipboard
 grim
 slurp
 fonts-jetbrains-mono
+# test harness support (XFCE Classic session): raise/minimize windows by name from a typed command
+xdotool
