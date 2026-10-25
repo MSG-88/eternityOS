@@ -11,6 +11,9 @@ firmware-realtek
 firmware-atheros
 firmware-brcm80211
 firmware-misc-nonfree
+# Intel Arrow Lake laptops (owner's ROG Strix SCAR 16): Xe GPU GuC/HuC and audio DSP firmware
+firmware-intel-graphics
+firmware-intel-sound
 firmware-sof-signed
 amd64-microcode
 intel-microcode
