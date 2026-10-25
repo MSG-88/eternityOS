@@ -44,6 +44,16 @@ class TestSessionFiles(unittest.TestCase):
         self.assertIn("exec Hyprland", s)
         self.assertIn("WLR_RENDERER_ALLOW_SOFTWARE=1", s)
 
+    def test_session_never_forces_software_gl_on_hyprland(self):
+        # Build 13 diagnosis: with LIBGL_ALWAYS_SOFTWARE=1 Mesa refuses Hyprland's explicit EGL device
+        # ("Not allowed to force software rendering when API explicitly selects a hardware device")
+        # and Hyprland crashes before the shell starts. Mesa falls back to kms_swrast by itself.
+        s = read("config/includes.chroot/usr/local/bin/eternity-session")
+        self.assertFalse(re.search(r"^\s*export LIBGL_ALWAYS_SOFTWARE", s, re.M), "LIBGL_ALWAYS_SOFTWARE exported")
+        self.assertIn("AQ_NO_MODIFIERS=1", s)
+        self.assertIn("QT_QUICK_BACKEND=software", s)
+        self.assertIn(".cache/hyprland", s)          # Hyprland's crash-report directory must exist
+
     def test_live_config_component(self):
         s = read("config/includes.chroot/usr/lib/live/config/0032-eternity-session")
         self.assertIn("eternity.session=", s)
