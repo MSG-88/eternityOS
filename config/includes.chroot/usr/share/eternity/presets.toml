@@ -1,0 +1,54 @@
+# Eternity 08 appearance presets (Settings > Appearance). Each preset overlays theme.toml and
+# layout.toml keys; "nocturne" is the shipped default (an empty overlay).
+[[preset]]
+id = "nocturne"
+name = "Nocturne"
+description = "The design: dark navy ground, violet accent, full motion."
+
+[[preset]]
+id = "nocturne-light"
+name = "Nocturne Light"
+description = "The same tokens on a pale ground."
+[preset.theme.color]
+bg = "#f3f5fe"
+surface = "#ffffff"
+text = "#1b1e31"
+n400 = "#595d6c"
+n500 = "#75798c"
+n600 = "#9397ab"
+n700 = "#b2b6ca"
+n800 = "#cfd3e5"
+n900 = "#e4e7f5"
+
+[[preset]]
+id = "mono"
+name = "Mono"
+description = "No accent colour: everything in the neutral ramp."
+[preset.theme.color]
+accent = "#b2b6ca"
+accent_300 = "#e4e7f5"
+accent_400 = "#cfd3e5"
+accent_600 = "#9397ab"
+accent_700 = "#75798c"
+[preset.theme.motion]
+glow = 0.3
+
+[[preset]]
+id = "high-contrast"
+name = "High contrast"
+description = "Brighter text and borders, thicker rules."
+[preset.theme.color]
+text = "#ffffff"
+n400 = "#e4e7f5"
+n500 = "#cfd3e5"
+n800 = "#75798c"
+[preset.layout]
+border = 2
+
+[[preset]]
+id = "quiet"
+name = "Quiet"
+description = "Reduced motion: no sweeps, no decoding text, no glow breathing."
+[preset.theme.motion]
+reduced = true
+glow = 0.5

@@ -4,6 +4,7 @@ import Quickshell
 // The Eternity shell: per screen the presence (background layer), the status strip and the Ask bar; one session lock.
 ShellRoot {
     Lock {}
+    SettingsWindow {}
     Variants {
         model: Quickshell.screens
         delegate: Component {

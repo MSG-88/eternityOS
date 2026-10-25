@@ -113,6 +113,23 @@ class TestRender(Base):
         self.assertTrue(os.path.exists(os.path.join(self.home, ".config", "eternity", "generated", "hyprland.conf")))
 
 
+class TestPresets(unittest.TestCase):
+    def test_shipped_presets_validate(self):
+        presets = theme.presets()
+        ids = [p["id"] for p in presets]
+        for n in ("nocturne", "nocturne-light", "mono", "high-contrast", "quiet"):
+            self.assertIn(n, ids)
+        for p in presets:
+            cfg = theme.load()
+            cfg["theme"] = theme._merge(cfg["theme"], p.get("theme", {}))
+            cfg["layout"] = theme._merge(cfg["layout"], p.get("layout", {}))
+            self.assertEqual(theme.validate(cfg), [], p["id"])
+        light = next(p for p in presets if p["id"] == "nocturne-light")
+        self.assertNotEqual(light["theme"]["color"]["bg"], "#161826")
+        quiet = next(p for p in presets if p["id"] == "quiet")
+        self.assertTrue(quiet["theme"]["motion"]["reduced"])
+
+
 class TestDefaultsFiles(unittest.TestCase):
     def test_shipped_defaults_exist(self):
         for n in ("theme.toml", "layout.toml", "keys.toml", "hyprland.base.conf", "hypridle.conf"):

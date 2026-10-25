@@ -150,6 +150,17 @@ render 1536 864 notify-storm && check notify-storm 'd["cards_visible"] == 3 and 
 render 1536 864 notify-dnd && check notify-dnd 'd["cards_visible"] == 0 and d["held"] == 2' "do not disturb: nothing shown, two held"
 render 1536 864 osd && check osd 'near(it["osd"][2], 240*k, 1) and near(it["osd"][1], 900*k, 2) and near(it["osd_fill"][2], 240*k*0.65, 2) and it["osd_label"][4] == "Volume 65%"' "OSD bar 240k at y 900k, 65 % fill"
 [ -f "$OUT/notify-storm/notify-storm.png" ] && ok "notify-storm.png written" || bad "notify-storm.png missing"
+# slice 2: Settings window (nav + the design's 700-wide column at x 1000 / y 200 inside a 1920 reference)
+render 1536 864 settings-eternity && {
+    check settings-eternity 'it["kicker"][4] == "SETTINGS \u00b7 ETERNITY" and it["title"][4] == "How she shows up" and near(it["column"][2], 700*k, 2)' "kicker, title, 700k column"
+    check settings-eternity 'd["rows"] >= 5 and near(it["row0"][3], it["row1"][3], 2) and near(it["slider"][2], 240*k, 1)' "rows of equal height; verbosity slider 240k"
+    check settings-eternity 'd["pages"] == ["Eternity", "Assistant", "Devices", "Network", "Sound", "Power", "Appearance", "Keys"] and d["page"] == "Eternity"' "eight pages, Eternity first"
+    check settings-eternity 'd["telemetry_enabled"] is False and d["telemetry_on"] is False' "telemetry switch off and disabled"
+}
+render 1536 864 settings-offline && check settings-offline 'd["controls_enabled"] is False and it["offline"][4].find("not running") >= 0' "daemon down: controls disabled with a line"
+render 1536 864 settings-appearance && check settings-appearance 'd["page"] == "Appearance" and d["presets"] == ["Nocturne", "Nocturne Light", "Mono", "High contrast", "Quiet"] and d["scales"] == [1, 1.25, 1.5]' "appearance: presets and scales"
+render 1536 864 settings-assistant && check settings-assistant 'd["page"] == "Assistant" and d["providers"] >= 3 and d["allow_tools"] >= 8' "assistant: providers and allow-list"
+[ -f "$OUT/settings-eternity/settings-eternity.png" ] && ok "settings-eternity.png written" || bad "settings-eternity.png missing"
 render 1536 864 latency && check latency 'd["lat_count"] == 20 and near(d["lat_p95"], 19, 1) and d["lat_file"].endswith("/eternity/latency.json")' "latency samples: p95 of 20 samples"
 
 if [ $fail = 0 ]; then echo "SHELL RENDER: PASS"; else echo "SHELL RENDER: FAIL (artifacts in $OUT)"; exit 1; fi

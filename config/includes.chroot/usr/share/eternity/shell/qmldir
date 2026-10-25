@@ -31,3 +31,10 @@ NotifyCard 1.0 NotifyCard.qml
 NotifyStack 1.0 NotifyStack.qml
 Osd 1.0 Osd.qml
 Overlay 1.0 Overlay.qml
+SettingsRow 1.0 SettingsRow.qml
+singleton Controls 1.0 Controls.qml
+Toggle 1.0 Toggle.qml
+Seg 1.0 Seg.qml
+Slider 1.0 Slider.qml
+SettingsContent 1.0 SettingsContent.qml
+SettingsWindow 1.0 SettingsWindow.qml

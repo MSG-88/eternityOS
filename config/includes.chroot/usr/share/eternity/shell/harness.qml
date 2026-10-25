@@ -14,6 +14,7 @@ ShellRoot {
     readonly property bool presence: scenario.indexOf("presence") === 0
     readonly property bool lockScene: scenario.indexOf("lock") === 0
     readonly property bool greeterScene: scenario.indexOf("greeter") === 0
+    readonly property bool settingsScene: scenario.indexOf("settings") === 0
     readonly property bool notifyScene: scenario.indexOf("notify") === 0 || scenario === "osd"
     readonly property bool ringScene: scenario.indexOf("launcher") === 0 || scenario === "windowring"
     readonly property var designApps: ["Files", "Mail", "Calendar", "Notes", "Music", "Photos", "Terminal", "Browser", "Messages", "Code", "Monitor", "Settings"].map(n => ({ id: n.toLowerCase(), name: n, exec: n.toLowerCase(), icon: "" }))
@@ -39,7 +40,19 @@ ShellRoot {
                 active: root.presence
                 sourceComponent: PresenceContent { k: root.k; cards: root.designCards; animated: false; windowState: root.scenario === "presence-windows" ? "windows" : "empty" }
             }
-            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene && !root.greeterScene && !root.ringScene && !root.notifyScene }
+            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene && !root.greeterScene && !root.ringScene && !root.notifyScene && !root.settingsScene }
+            Loader {
+                id: settingsLoader
+                anchors.fill: parent
+                active: root.settingsScene
+                sourceComponent: SettingsContent {
+                    k: root.k
+                    online: root.scenario !== "settings-offline"
+                    settings: ({ voice: "calm", verbosity: "normal", proactive: true, on_device_only: true, provider: "local", claude_code_model: "sonnet", claude_code_allow: ["Read"], unlock_methods: ["passphrase", "pin"], trust_level: 0 })
+                    themeCfg: ({ theme: { motion: { reduced: false, glow: 1.0 } }, layout: { scale: 1.25 }, keys: { bind: { ask: "SUPER, space", lock: "SUPER, L" } } })
+                }
+                onLoaded: { if (root.scenario === "settings-appearance") item.page = "Appearance"; if (root.scenario === "settings-assistant") item.page = "Assistant"; }
+            }
             Loader {
                 id: notifyLoader
                 anchors.fill: parent
@@ -143,6 +156,7 @@ ShellRoot {
                 if (root.lockScene) { base.items = lockLoader.item.geometry(); return Object.assign(base, lockLoader.item.flags()); }
                 if (root.greeterScene) { base.items = greeterLoader.item.geometry(); return Object.assign(base, greeterLoader.item.flags()); }
                 if (root.ringScene) { base.items = ringLoader.item.geometry(); return Object.assign(base, ringLoader.item.flags()); }
+                if (root.settingsScene) { base.items = settingsLoader.item.geometry(); return Object.assign(base, settingsLoader.item.flags()); }
                 if (root.notifyScene) { base.items = Object.assign(notifyLoader.item.stackItem.geometry(), notifyLoader.item.osdItem.geometry()); return Object.assign(base, notifyLoader.item.stackItem.flags()); }
                 base.items = strip.geometry(); return base;
             }

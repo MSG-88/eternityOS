@@ -367,6 +367,45 @@ class TestNotifications(Base):
         self.assertEqual(recent[0]["summary"], "519")
 
 
+class TestThemeOverSocket(Base):
+    """Slice 2 Task 4: Settings pages write the user's theme/layout files through the daemon."""
+
+    def test_theme_get_and_set(self):
+        os.environ["ETERNITY_SHARE"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "config", "includes.chroot", "usr", "share", "eternity")
+        from eternity import theme
+        theme.SHARE = os.environ["ETERNITY_SHARE"]
+        t = self.c.call("theme.get")
+        self.assertEqual(t["theme"]["color"]["accent"], "#9184d9")
+        self.assertEqual(t["layout"]["scale"], 1.25)
+        sub = Subscriber(self.sock_path)
+        r = self.c.call("theme.set", file="layout", key="scale", value=1.5)
+        self.assertEqual(r["layout"]["scale"], 1.5)
+        with open(os.path.join(self.tmp.name, ".config", "eternity", "layout.toml"), encoding="utf-8") as f:
+            self.assertIn("scale = 1.5", f.read())
+        self.assertIn("monitor=eDP-1,preferred,auto,1.5", open(os.path.join(self.tmp.name, ".config", "eternity", "generated", "hyprland.conf")).read())
+        sub.wait("theme.changed")
+        r = self.c.call("theme.set", file="theme", section="motion", key="reduced", value=True)
+        self.assertTrue(r["theme"]["motion"]["reduced"])
+        with self.assertRaises(D.DaemonError):
+            self.c.call("theme.set", file="layout", key="scale", value=9)        # invalid: refused, file untouched
+        self.assertEqual(self.c.call("theme.get")["layout"]["scale"], 1.5)
+        with self.assertRaises(D.DaemonError):
+            self.c.call("theme.set", file="nope", key="x", value=1)
+
+    def test_presets(self):
+        os.environ["ETERNITY_SHARE"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "config", "includes.chroot", "usr", "share", "eternity")
+        from eternity import theme
+        theme.SHARE = os.environ["ETERNITY_SHARE"]
+        names = [p["id"] for p in self.c.call("theme.presets")["presets"]]
+        for n in ("nocturne", "nocturne-light", "mono", "high-contrast", "quiet"):
+            self.assertIn(n, names)
+        r = self.c.call("theme.apply_preset", id="quiet")
+        self.assertTrue(r["theme"]["motion"]["reduced"])
+        r = self.c.call("theme.apply_preset", id="nocturne")
+        self.assertFalse(r["theme"]["motion"]["reduced"])
+        self.assertEqual(r["theme"]["color"]["accent"], "#9184d9")
+
+
 class TestSecurity(unittest.TestCase):
     def test_rejects_other_uid(self):
         tmp = tempfile.mkdtemp()

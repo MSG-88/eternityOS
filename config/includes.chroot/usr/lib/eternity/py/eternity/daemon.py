@@ -172,6 +172,7 @@ class Daemon:
             "consent.ask": self.m_consent_ask, "session.lock": self.m_lock, "session.locked": self.m_locked, "session.unlocked": self.m_unlocked,
             "session.lock_info": self.m_lock_info, "pin.verify": self.m_pin,
             "hw.summary": self.m_hw, "launcher.index": self.m_launcher, "launcher.show": self.m_launcher_show, "launcher.launch": self.m_launcher_launch,
+            "settings.show": self.m_settings_show, "theme.get": self.m_theme_get, "theme.set": self.m_theme_set, "theme.presets": self.m_theme_presets, "theme.apply_preset": self.m_theme_preset,
             "notifications.store": self.m_notif_store, "notifications.recent": self.m_notif_recent, "notifications.seen": self.m_notif_seen, "osd.show": self.m_osd, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
         }
         # methods answered on a worker thread because they block on the user or on slow probes
@@ -428,6 +429,10 @@ class Daemon:
     def m_subscribe(self, params: dict) -> dict:
         return {}
 
+    def m_settings_show(self, params: dict) -> dict:
+        self.emit("settings.show", {})
+        return {}
+
     def m_settings_get(self, params: dict) -> dict:
         from dataclasses import asdict
         return asdict(self._fresh_cfg())
@@ -454,7 +459,8 @@ class Daemon:
         return {"clock": now.strftime("%H:%M"), "date": now.strftime("%A %d %B"), "battery": C.battery(), "network": C.network(),
                 "ai": C.ai_status(cfg), "memory": mem, "cpu": C.cpu_percent(), "latency_ms": (lat or {}).get("latency_ms"),
                 "live": C.live_session(), "user_name": cfg.name, "notifications_held": 0, "uptime": C.uptime_text(),
-                "provider": cfg.effective_provider(), "locked": self.locked}
+                "provider": cfg.effective_provider(), "locked": self.locked, "dnd": cfg.dnd,
+                "settings": __import__("dataclasses").asdict(cfg)}
 
     def m_cards(self, params: dict) -> dict:
         from . import theme
@@ -688,6 +694,37 @@ class Daemon:
             r["seen"] = True
         self._notif_write(rows)
         return {"seen": len(rows)}
+
+    # -- appearance (Settings > Appearance writes the user's TOML files through theme.py) --------
+    def m_theme_get(self, params: dict) -> dict:
+        from . import theme
+        cfg = theme.load()
+        return {"theme": cfg["theme"], "layout": cfg["layout"], "keys": cfg["keys"], "errors": cfg["_errors"]}
+
+    def m_theme_set(self, params: dict) -> dict:
+        from . import theme
+        file, key, section = str(params.get("file", "")), str(params.get("key", "")), params.get("section")
+        if file not in theme.FILES or not key:
+            raise DaemonError("theme.set needs file (theme|layout|keys), key and value")
+        try:
+            cfg = theme.set_value(file, key, params.get("value"), section=str(section) if section else None)
+        except ValueError as e:
+            raise DaemonError(str(e))
+        self.emit("theme.changed", {"file": file, "key": key})
+        return {"theme": cfg["theme"], "layout": cfg["layout"]}
+
+    def m_theme_presets(self, params: dict) -> dict:
+        from . import theme
+        return {"presets": [{k: v for k, v in p.items() if k in ("id", "name", "description")} for p in theme.presets()]}
+
+    def m_theme_preset(self, params: dict) -> dict:
+        from . import theme
+        try:
+            cfg = theme.apply_preset(str(params.get("id", "")))
+        except ValueError as e:
+            raise DaemonError(str(e))
+        self.emit("theme.changed", {"preset": params.get("id")})
+        return {"theme": cfg["theme"], "layout": cfg["layout"]}
 
     def m_osd(self, params: dict) -> dict:
         self.emit("osd", {"kind": str(params.get("kind", "volume")), "level": float(params.get("level", 0)), "label": str(params.get("label", ""))})
