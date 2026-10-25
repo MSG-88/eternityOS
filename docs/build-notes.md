@@ -438,3 +438,22 @@ when the runs finish.
   does nothing while the presence owns the desktop, and .desktop files are skipped.
 - Install chain (unattended install, boot-disk, boot-fallback, Secure Boot, BIOS, USB)
   restarted at 03:58 on the same ISO with the fixed runners: results below.
+
+### Build 11 (2026-10-25, 04:52 to 05:30, 35 min, 6.0 GB): wizard fixed, splash renders
+
+Build 10 plus: keyring opened lazily and never prompting, every window logs crashes to
+`~/.local/state/eternity/ui.log`, wizard quits on Esc, Plymouth script without ternary/`!`,
+runners send Esc, no desktop launcher copies, install-wait pattern fixed.
+
+- Visual run (TCG): GRUB lock-up menu; **Plymouth splash renders** (mark, hairline, wordmark,
+  six boot-log lines) but the log text shows as boxes: the initramfs carries no font for
+  `Image.Text` (`fonts-dejavu-core` added for build 12); greeter on the new wallpaper;
+  **the first-run wizard opens after login** ("Hello. I'm Eternity.") over the presence
+  desktop; `~/.xsession-errors` has no Eternity lines; the autostart list shows
+  eternity-firstrun / eternity-shell / eternity-wallpaper; terminal: fastfetch in the
+  violet palette, 707 MB used in the live session with the shell running (build 8: 665 MB).
+  Screenshots `docs/screenshots/build11-*.png`.
+- The stick was rewritten raw with build 11 at 05:31 (`tools/write-usb.ps1` elevated;
+  Windows re-enumerated, PnP re-plug, full read-back compared with the ISO).
+- Install, boot-disk, boot-fallback, smoke, Secure Boot, BIOS and USB runs follow in the
+  chain (`tools/dev/chain-build11.sh`); results appended when done.

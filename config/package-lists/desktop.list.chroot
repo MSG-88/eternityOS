@@ -53,3 +53,5 @@ gnome-keyring
 libpam-gnome-keyring
 libsecret-tools
 brightnessctl
+# Plymouth Image.Text needs a font the initramfs hook ships (DejaVu); without it the boot log is boxes
+fonts-dejavu-core
