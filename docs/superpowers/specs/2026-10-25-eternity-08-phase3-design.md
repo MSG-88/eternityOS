@@ -1,6 +1,6 @@
 # Eternity 08 phase 3: the Eternity shell, agents without keys, hardware, USB persistence, customisation
 
-Status: draft for the owner, written 2026-10-25 afternoon from the owner's testing feedback
+Status: **approved by the owner 2026-10-25 evening** (answers in §15); written 2026-10-25 afternoon from the owner's testing feedback
 (backlog section 5) and the Claude Design file (`docs/design/`, sources unpacked in
 `docs/design/src/`). The owner's words that drive it:
 
@@ -548,3 +548,29 @@ order inside each build as long as §8's order of sections holds.
    the build host, so each laptop session pauses the chain.
 8. **Encrypted stick by default** (my call in §13.4): a passphrase at every boot of the stick
    in exchange for the sign-in and the keyring being protected. Agree?
+
+## 15. Owner's answers (2026-10-25 evening)
+
+1. Platform: **Hyprland** (+ Quickshell/QML) approved.
+2. "BIOS": *a BIOS error was shown in the logs while installing the OS*. Most likely the
+   kernel's `ACPI BIOS Error (bug)` lines that AMD laptops with MSI firmware print at boot
+   (unresolved ACPI symbols; harmless) shown by the verbose console or the boot log. Plan:
+   `eternity-hw` and the boot log classify firmware (ACPI) notices and say so in plain words;
+   the install flow never shows raw kernel noise; the exact text to be confirmed from the
+   laptop (`journalctl -k | grep -i "ACPI BIOS"`, or the `eternity-hw` report on build 12).
+3. Agents: **deeper Claude Code first** ("ingest Claude Code into the OS"): sessions, the
+   allow-list page, cost/usage readout, model picker, the agent-OS tools of §5.3, Claude Code
+   as the brain of first run and Settings help; Codex/Gemini after.
+4. Eternity is **solely personal**, for this machine: no distribution concerns now; the
+   Commercial Terms question is parked until that changes.
+5. Design access: logged in; the live sources are in `docs/design/src/`.
+6. Scale: **125 % by default, scalable** (the shell's `k` factor comes from the output scale;
+   all geometry in design pixels; test at 100/125/150).
+7. Direction, in the owner's words: "max high tech customizations", "performance efficient
+   and also visually catching with all the necessary ui/ux high tech animations that does not
+   affect the near realtime performance". Consequence for the plan: the HUD layer (frames,
+   sweeps, decoding text, wordmark draw-in) ships, GPU-only, every effect a token with a
+   budget check; the frame-time counter in Monitor is the arbiter: any effect that costs a
+   dropped frame on the laptop is reworked or demoted to the "Quiet" preset.
+8. Encrypted stick by default and laptop time per build: not answered yet; proceeding with
+   encrypted-by-default (§13.4) and asking for laptop time when build 13 is on the stick.
