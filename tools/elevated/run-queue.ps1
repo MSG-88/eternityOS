@@ -12,7 +12,7 @@ try {
   foreach ($s in (Get-ChildItem $Queue -Filter '*.ps1' | Sort-Object Name)) {
     $logf = Join-Path $Out ($s.BaseName + '.log')
     "=== $($s.Name) started $(Get-Date)" | Set-Content $logf
-    try { & $s.FullName *>> $logf; "=== exit ok $(Get-Date)" | Add-Content $logf }
+    try { & $s.FullName *>&1 | Out-File -Append -Encoding utf8 $logf; "=== exit ok $(Get-Date)" | Add-Content $logf }
     catch { "=== FAILED: $($_.Exception.Message) $(Get-Date)" | Add-Content $logf }
     Move-Item -Force $s.FullName (Join-Path $Done ($s.Name))
   }
