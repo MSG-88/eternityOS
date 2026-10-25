@@ -48,6 +48,9 @@ Rectangle {
         }
     }
     Keys.onEscapePressed: root.reply(false, "")
+    // keyboard: Enter allows a non-PIN action (the PIN field submits through onAccepted), Esc declines
+    Keys.onReturnPressed: if (!root.needPin) root.reply(true, "")
+    Keys.onEnterPressed: if (!root.needPin) root.reply(true, "")
     function geometry() { return { consent: [x, y, width, height, ""], consent_kicker: [kicker.x, kicker.y, kicker.width, kicker.height, kicker.text], pin_visible: pinBox.visible }; }
-    function focusInput() { if (root.needPin) { pin.text = ""; pin.forceActiveFocus(); } }
+    function focusInput() { if (root.needPin) { pin.text = ""; pin.forceActiveFocus(); } else root.forceActiveFocus(); }
 }
