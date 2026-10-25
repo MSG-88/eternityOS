@@ -11,8 +11,9 @@ It offers two things:
   trust rules decide; commands that escalate privileges are always denied; the decision is
   logged. The human stays in control no matter which brain is answering.
 
-Consent is shown with GTK when a display is available (ETERNITY_CONSENT=gtk, the default),
-or decided by policy for tests and headless runs (ETERNITY_CONSENT=allow|deny).
+Consent goes to the Eternity shell through eternity-daemon when the session socket exists,
+otherwise it is shown with GTK (XFCE session), or decided by policy for tests and headless runs
+(ETERNITY_CONSENT=allow|deny).
 
 Protocol: MCP 2025-06-18 subset (initialize, notifications/initialized, ping, tools/list,
 tools/call); unknown requests get an empty result so a newer client never hangs.
@@ -85,10 +86,24 @@ def gtk_consent(cfg: S.Settings) -> Callable[[A.Tool, dict], bool]:
     return consent
 
 
+def daemon_consent(cfg: S.Settings) -> Callable[[A.Tool, dict], bool]:
+    """In the Eternity session the shell renders the dialog: ask through eternity-daemon."""
+    from . import daemon as D
+
+    def consent(tool: A.Tool, args: dict) -> bool:
+        need_pin = tool.risk == A.RISK_DANGEROUS and "pin" in cfg.unlock_methods and os.path.exists(
+            os.path.join(S.config_dir(), "pin.json"))
+        return D.request_consent(tool, args, need_pin)
+    return consent
+
+
 def make_consent(cfg: S.Settings) -> Callable[[A.Tool, dict], bool]:
     mode = os.environ.get("ETERNITY_CONSENT", "gtk")
     if mode in ("allow", "deny"):
         return policy_consent(mode)
+    from . import daemon as D
+    if D.available():
+        return daemon_consent(cfg)
     if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
         _log("no display: consent policy deny")
         return policy_consent("deny")

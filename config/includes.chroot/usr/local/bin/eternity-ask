@@ -1,3 +1,12 @@
 #!/bin/sh
 # Ask Eternity: the command bar (Super+Space). `eternity-ask "question"` asks straight away.
+# In the Eternity session (daemon socket present) `--show` raises the shell's bar; otherwise the GTK bar opens.
+SOCK="${ETERNITY_SOCK:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/eternity/daemon.sock}"
+if [ -S "$SOCK" ]; then
+    case "$1" in
+        --show|"") exec /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity import daemon; daemon.Client().call("ask.show")' ;;
+        --bar) ;;
+        *) exec /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity import daemon; daemon.Client().call("ask.show", text=" ".join(sys.argv[1:]))' "$@" ;;
+    esac
+fi
 exec /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity.ui import ask; sys.exit(ask.main())' "$@"

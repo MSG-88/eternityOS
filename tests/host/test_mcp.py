@@ -13,6 +13,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PYROOT = os.path.join(HERE, "..", "..", "config", "includes.chroot", "usr", "lib", "eternity", "py")
 sys.path.insert(0, PYROOT)
 os.environ["ETERNITY_NO_KEYRING"] = "1"
+os.environ.setdefault("ETERNITY_CONSENT", "deny")
 
 from eternity import actions as A  # noqa: E402
 from eternity import mcp  # noqa: E402
@@ -151,6 +152,54 @@ class TestUndoAcrossProcesses(Base):
         rpc(srv, "tools/call", {"name": "write_note", "arguments": {"title": "n2", "text": "x"}})
         r = rpc(srv, "tools/call", {"name": "undo_last", "arguments": {}})
         self.assertIn("removed", r["result"]["content"][0]["text"])
+
+
+class TestConsentViaDaemon(Base):
+    """In the Eternity session the MCP server asks the shell through the daemon, not GTK."""
+
+    def test_consent_via_daemon(self):
+        import threading
+        from eternity import daemon as D
+        from test_daemon import Subscriber
+        sock = os.path.join(self.home, "d.sock")
+        d = D.Daemon(provider_factory=None, sock_path=sock, cfg=self.cfg, tick_s=0)
+        threading.Thread(target=d.serve_forever, daemon=True).start()
+        d.ready.wait(5)
+        seen = []
+
+        def auto_approve():
+            sub = Subscriber(sock)
+            started.set()
+            ev = sub.wait("consent.request", timeout=20)
+            seen.append(ev)
+            D.Client(sock).call("consent.reply", consent_id=ev["consent_id"], ok=True)
+        started = threading.Event()
+        threading.Thread(target=auto_approve, daemon=True).start()
+        started.wait(5)
+        os.environ["ETERNITY_SOCK"] = sock
+        os.environ.pop("ETERNITY_CONSENT", None)
+        try:
+            consent = mcp.make_consent(self.cfg)
+            ok = consent(A.builtin_tool("Bash", {"command": "ls"}), {"command": "ls"})
+        finally:
+            os.environ.pop("ETERNITY_SOCK", None)
+            os.environ["ETERNITY_CONSENT"] = "deny"
+            d.stop()
+        self.assertTrue(ok)
+        self.assertEqual(seen[0]["tool"], "Bash")
+        self.assertEqual(seen[0]["risk"], "dangerous")
+        self.assertIn("ls", seen[0]["description"])
+
+    def test_no_daemon_falls_back(self):
+        os.environ["ETERNITY_SOCK"] = os.path.join(self.home, "missing.sock")
+        os.environ.pop("ETERNITY_CONSENT", None)
+        os.environ.pop("DISPLAY", None); os.environ.pop("WAYLAND_DISPLAY", None)
+        try:
+            consent = mcp.make_consent(self.cfg)
+            self.assertFalse(consent(A.builtin_tool("Bash", {"command": "ls"}), {"command": "ls"}))
+        finally:
+            os.environ.pop("ETERNITY_SOCK", None)
+            os.environ["ETERNITY_CONSENT"] = "deny"
 
 
 class TestCommandLine(unittest.TestCase):
