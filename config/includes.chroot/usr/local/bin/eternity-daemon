@@ -1,0 +1,3 @@
+#!/bin/sh
+# The Eternity session's state hub (socket $XDG_RUNTIME_DIR/eternity/daemon.sock). `--once METHOD [JSON]` queries a running one.
+exec /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity import daemon; sys.exit(daemon.main())' "$@"

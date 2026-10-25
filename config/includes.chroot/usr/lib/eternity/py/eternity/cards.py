@@ -172,5 +172,19 @@ def actions_today() -> int:
     return n
 
 
+def latency_sample() -> Optional[Dict[str, object]]:
+    """The shell's last key-to-frame measurement: $XDG_RUNTIME_DIR/eternity/latency.json
+    ({"latency_ms": float, "dropped_frames": int, "ts": epoch}); None when absent or stale."""
+    run = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    try:
+        with open(os.path.join(run, "eternity", "latency.json"), encoding="utf-8") as f:
+            m = json.load(f)
+        if time.time() - float(m.get("ts", 0)) > 120:
+            return None
+        return m
+    except (OSError, ValueError):
+        return None
+
+
 def live_session() -> bool:
     return os.path.exists("/run/live/medium")
