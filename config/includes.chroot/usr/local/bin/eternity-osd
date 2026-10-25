@@ -1,0 +1,19 @@
+#!/bin/sh
+# Show the shell's on-screen display for a changed level: eternity-osd volume | brightness.
+# Reads the current level (wpctl / brightnessctl) and sends it to the daemon (osd.show).
+kind=${1:-volume}
+case "$kind" in
+    volume)
+        v=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null | awk '{print $2}')
+        muted=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -c MUTED)
+        [ -n "$v" ] || exit 0
+        [ "$muted" = 1 ] && label="Muted" || label="Volume $(awk "BEGIN{printf \"%d\", $v*100}")%"
+        level=$v ;;
+    brightness)
+        cur=$(brightnessctl get 2>/dev/null); max=$(brightnessctl max 2>/dev/null)
+        [ -n "$cur" ] && [ -n "$max" ] || exit 0
+        level=$(awk "BEGIN{printf \"%.3f\", $cur/$max}")
+        label="Brightness $(awk "BEGIN{printf \"%d\", $cur*100/$max}")%" ;;
+    *) exit 2 ;;
+esac
+exec /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity import daemon; daemon.Client().call("osd.show", kind=sys.argv[1], level=float(sys.argv[2]), label=sys.argv[3])' "$kind" "$level" "$label" 2>/dev/null

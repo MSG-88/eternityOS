@@ -141,6 +141,15 @@ render 1536 864 launcher-nomatch && check launcher-nomatch 'd["tile_count"] == 0
 render 1536 864 launcher-page && check launcher-page 'd["tile_count"] == 4 and d["page"] == 1 and d["pages"] == 2 and it["tile0"][4] == "App13"' "16 apps: page 2 shows the rest"
 render 1536 864 windowring && check windowring 'd["tile_count"] == 3 and it["tile0"][4] == "Terminal" and d["selected"] == "Terminal"' "window ring lists toplevels"
 [ -f "$OUT/launcher/launcher.png" ] && ok "launcher.png written" || bad "launcher.png missing"
+# slice 2: notification cards under the strip (300k wide, top-right), a storm holds the rest, the OSD
+render 1536 864 notify && {
+    check notify 'd["cards_visible"] == 1 and near(it["card0"][2], 300*k, 1) and near(it["card0"][0] + it["card0"][2], 1536 - 28*k, 2) and near(it["card0"][1], 44*k + 12*k, 2)' "one card 300k at top-right under the strip"
+    check notify 'it["card0"][4] == "Mail" and d["held"] == 0' "card shows the app as kicker; nothing held"
+}
+render 1536 864 notify-storm && check notify-storm 'd["cards_visible"] == 3 and d["held"] == 47 and d["queued"] == 47' "50 notifications: three cards, 47 held"
+render 1536 864 notify-dnd && check notify-dnd 'd["cards_visible"] == 0 and d["held"] == 2' "do not disturb: nothing shown, two held"
+render 1536 864 osd && check osd 'near(it["osd"][2], 240*k, 1) and near(it["osd"][1], 900*k, 2) and near(it["osd_fill"][2], 240*k*0.65, 2) and it["osd_label"][4] == "Volume 65%"' "OSD bar 240k at y 900k, 65 % fill"
+[ -f "$OUT/notify-storm/notify-storm.png" ] && ok "notify-storm.png written" || bad "notify-storm.png missing"
 render 1536 864 latency && check latency 'd["lat_count"] == 20 and near(d["lat_p95"], 19, 1) and d["lat_file"].endswith("/eternity/latency.json")' "latency samples: p95 of 20 samples"
 
 if [ $fail = 0 ]; then echo "SHELL RENDER: PASS"; else echo "SHELL RENDER: FAIL (artifacts in $OUT)"; exit 1; fi

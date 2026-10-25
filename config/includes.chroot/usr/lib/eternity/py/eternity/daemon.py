@@ -49,7 +49,7 @@ INBUF_CAP_BYTES = 1024 * 1024
 # changed only through the Settings app, which writes the file: a process that can reach the
 # socket must not be able to lower the bar for its own actions.
 SETTABLE = ("verbosity", "proactive", "voice", "name", "provider", "on_device_only", "claude_code_model", "claude_code_allow",
-            "local_model", "hotkey", "agent_mode", "anthropic_model", "openai_model")
+            "local_model", "hotkey", "agent_mode", "anthropic_model", "openai_model", "dnd")
 
 
 class DaemonError(Exception):
@@ -171,7 +171,8 @@ class Daemon:
             "ask.cancel": self.m_ask_cancel, "ask.undo": self.m_ask_undo, "ask.show": self.m_ask_show, "consent.reply": self.m_consent_reply,
             "consent.ask": self.m_consent_ask, "session.lock": self.m_lock, "session.locked": self.m_locked, "session.unlocked": self.m_unlocked,
             "session.lock_info": self.m_lock_info, "pin.verify": self.m_pin,
-            "hw.summary": self.m_hw, "launcher.index": self.m_launcher, "launcher.show": self.m_launcher_show, "launcher.launch": self.m_launcher_launch, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
+            "hw.summary": self.m_hw, "launcher.index": self.m_launcher, "launcher.show": self.m_launcher_show, "launcher.launch": self.m_launcher_launch,
+            "notifications.store": self.m_notif_store, "notifications.recent": self.m_notif_recent, "notifications.seen": self.m_notif_seen, "osd.show": self.m_osd, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
         }
         # methods answered on a worker thread because they block on the user or on slow probes
         self.slow_methods = {"consent.ask", "session.lock", "state.get", "cards.get", "metrics.sample", "hw.summary", "pin.verify",
@@ -457,7 +458,7 @@ class Daemon:
 
     def m_cards(self, params: dict) -> dict:
         from . import theme
-        wanted = (theme.load().get("layout") or {}).get("cards") or ["today", "system", "eternity", "recent", "install"]
+        wanted = (theme.load().get("layout") or {}).get("cards") or ["today", "system", "eternity", "recent", "install", "focus", "nowplaying"]
         out = []
         for cid in wanted:
             card = self._card(cid)
@@ -492,7 +493,12 @@ class Daemon:
             if not C.live_session():
                 return None
             return {"id": cid, "kicker": "Live session", "title": "Install Eternity 08", "body": "Keep everything: install next to Windows or on the whole disk.", "meta": "eternity-install", "actions": ["install"]}
-        return None   # focus / nowplaying: slice 2 (notifications, MPRIS)
+        if cid == "focus":
+            if not cfg.dnd:
+                return None
+            held = self._since_count()
+            return {"id": cid, "kicker": "Focus", "title": "Do not disturb", "body": f"Notifications held \u00b7 {held} queued", "meta": "until you turn it off", "actions": ["dnd"]}
+        return None   # nowplaying: MPRIS lives in the shell (slice 2b)
 
     def m_metrics(self, params: dict) -> dict:
         lat = C.latency_sample() or {}
@@ -633,13 +639,59 @@ class Daemon:
         return {"greeting": greeting_for_hour(_dt.datetime.now().hour), "name": cfg.name, "since_count": self._since_count(),
                 "pin_available": "pin" in cfg.unlock_methods and os.path.exists(os.path.join(S.config_dir(), "pin.json")), "locked": self.locked}
 
-    def _since_count(self) -> int:
-        path = os.path.join(S.state_dir(), "notifications.jsonl")
+    # -- notifications (store behind the Focus card and the lock screen's since-count) ------
+    NOTIF_KEEP = 500
+
+    def _notif_path(self) -> str:
+        return os.path.join(S.state_dir(), "notifications.jsonl")
+
+    def _notif_read(self) -> List[dict]:
         try:
-            with open(path, encoding="utf-8") as f:
-                return sum(1 for line in f if '"seen": false' in line)
+            with open(self._notif_path(), encoding="utf-8") as f:
+                rows = []
+                for line in f:
+                    try:
+                        rows.append(json.loads(line))
+                    except ValueError:
+                        pass
+                return rows
         except OSError:
-            return 0
+            return []
+
+    def _notif_write(self, rows: List[dict]) -> None:
+        S._atomic_write(self._notif_path(), "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows[-self.NOTIF_KEEP:]), 0o600)
+
+    def _since_count(self) -> int:
+        return sum(1 for r in self._notif_read() if not r.get("seen"))
+
+    def m_notif_store(self, params: dict) -> dict:
+        row = {"id": uuid.uuid4().hex[:12], "ts": _dt.datetime.now().isoformat(timespec="seconds"), "app": str(params.get("app", ""))[:80],
+               "summary": str(params.get("summary", ""))[:200], "body": str(params.get("body", ""))[:1000], "urgency": str(params.get("urgency", "normal")),
+               "seen": False, "held": bool(self._fresh_cfg().dnd)}
+        rows = self._notif_read()
+        rows.append(row)
+        if len(rows) > self.NOTIF_KEEP + 20:
+            self._notif_write(rows)
+        else:
+            os.makedirs(S.state_dir(), exist_ok=True)
+            with open(self._notif_path(), "a", encoding="utf-8") as f:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        return {"id": row["id"], "held": row["held"]}
+
+    def m_notif_recent(self, params: dict) -> dict:
+        rows = self._notif_read()[-self.NOTIF_KEEP:]
+        return {"notifications": list(reversed(rows))[: int(params.get("limit", 20))]}
+
+    def m_notif_seen(self, params: dict) -> dict:
+        rows = self._notif_read()
+        for r in rows:
+            r["seen"] = True
+        self._notif_write(rows)
+        return {"seen": len(rows)}
+
+    def m_osd(self, params: dict) -> dict:
+        self.emit("osd", {"kind": str(params.get("kind", "volume")), "level": float(params.get("level", 0)), "label": str(params.get("label", ""))})
+        return {}
 
     def m_pin(self, params: dict) -> dict:
         from .ui.firstrun import verify_pin

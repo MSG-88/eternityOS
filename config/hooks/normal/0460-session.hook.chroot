@@ -8,7 +8,7 @@ for f in LockContent.qml GreeterContent.qml Theme.qml Geometry.qml Mobius.qml Wo
     cp -f /usr/share/eternity/shell/$f /usr/share/eternity/greeter/$f
 done
 mkdir -p /usr/share/eternity/greeter/assets && cp -f /usr/share/eternity/shell/assets/mobius-atlas.png /usr/share/eternity/greeter/assets/
-chmod 755 /usr/local/bin/eternity-greeter
+chmod 755 /usr/local/bin/eternity-greeter /usr/local/bin/eternity-osd
 # Claude Code's PreToolUse hook must be executable or every tool call runs unaudited (review C1)
 chmod 755 /usr/lib/eternity/claude-hook
 mkdir -p /etc/xdg/eternity /etc/xdg/quickshell

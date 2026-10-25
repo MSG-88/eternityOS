@@ -26,3 +26,8 @@ RingContent 1.0 RingContent.qml
 LauncherContent 1.0 LauncherContent.qml
 WindowRingContent 1.0 WindowRingContent.qml
 Launcher 1.0 Launcher.qml
+singleton Notifications 1.0 Notifications.qml
+NotifyCard 1.0 NotifyCard.qml
+NotifyStack 1.0 NotifyStack.qml
+Osd 1.0 Osd.qml
+Overlay 1.0 Overlay.qml

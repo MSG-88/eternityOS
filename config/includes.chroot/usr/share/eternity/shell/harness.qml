@@ -14,6 +14,7 @@ ShellRoot {
     readonly property bool presence: scenario.indexOf("presence") === 0
     readonly property bool lockScene: scenario.indexOf("lock") === 0
     readonly property bool greeterScene: scenario.indexOf("greeter") === 0
+    readonly property bool notifyScene: scenario.indexOf("notify") === 0 || scenario === "osd"
     readonly property bool ringScene: scenario.indexOf("launcher") === 0 || scenario === "windowring"
     readonly property var designApps: ["Files", "Mail", "Calendar", "Notes", "Music", "Photos", "Terminal", "Browser", "Messages", "Code", "Monitor", "Settings"].map(n => ({ id: n.toLowerCase(), name: n, exec: n.toLowerCase(), icon: "" }))
     readonly property bool plainScene: scenario === "screens" || scenario === "latency"
@@ -38,7 +39,25 @@ ShellRoot {
                 active: root.presence
                 sourceComponent: PresenceContent { k: root.k; cards: root.designCards; animated: false; windowState: root.scenario === "presence-windows" ? "windows" : "empty" }
             }
-            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene && !root.greeterScene && !root.ringScene }
+            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene && !root.greeterScene && !root.ringScene && !root.notifyScene }
+            Loader {
+                id: notifyLoader
+                anchors.fill: parent
+                active: root.notifyScene
+                sourceComponent: Item {
+                    property alias stackItem: ns
+                    property alias osdItem: osd
+                    NotifyStack { id: ns; k: root.k; screenWidth: root.w }
+                    Osd { id: osd; k: root.k; x: root.w / 2 - width / 2; y: 900 * root.k - 28 * root.k }
+                }
+                onLoaded: {
+                    Notifications.visible = []; Notifications.queued = []; Notifications.held = 0; Notifications.dnd = false;
+                    if (root.scenario === "notify") Notifications.push({ app: "Mail", summary: "3 new, 1 needs you", body: "Ola: shell spec v3 is ready for a read" });
+                    if (root.scenario === "notify-storm") for (let i = 0; i < 50; i++) Notifications.push({ app: "App" + i, summary: "message " + i, body: "" });
+                    if (root.scenario === "notify-dnd") { Notifications.dnd = true; Notifications.push({ app: "A", summary: "1", body: "" }); Notifications.push({ app: "B", summary: "2", body: "" }); }
+                    if (root.scenario === "osd") item.osdItem.show("Volume", 0.65, "Volume 65%");
+                }
+            }
             Loader {
                 id: ringLoader
                 anchors.fill: parent
@@ -124,6 +143,7 @@ ShellRoot {
                 if (root.lockScene) { base.items = lockLoader.item.geometry(); return Object.assign(base, lockLoader.item.flags()); }
                 if (root.greeterScene) { base.items = greeterLoader.item.geometry(); return Object.assign(base, greeterLoader.item.flags()); }
                 if (root.ringScene) { base.items = ringLoader.item.geometry(); return Object.assign(base, ringLoader.item.flags()); }
+                if (root.notifyScene) { base.items = Object.assign(notifyLoader.item.stackItem.geometry(), notifyLoader.item.osdItem.geometry()); return Object.assign(base, notifyLoader.item.stackItem.flags()); }
                 base.items = strip.geometry(); return base;
             }
         }

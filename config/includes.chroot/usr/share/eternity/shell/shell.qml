@@ -13,6 +13,7 @@ ShellRoot {
                 Strip { screen: modelData }
                 Bar { screen: modelData }
                 Launcher { screen: modelData }
+                Overlay { screen: modelData }
             }
         }
     }

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Notification daemon (XFCE)
+Exec=/usr/lib/x86_64-linux-gnu/xfce4/notifyd/xfce4-notifyd
+OnlyShowIn=XFCE;
+NoDisplay=true
+X-XFCE-Autostart-Override=true

@@ -331,6 +331,42 @@ class TestLauncher(Base):
             self.c.call("launcher.launch", id="no-such-app")
 
 
+class TestNotifications(Base):
+    """Slice 2 Task 3: the notification store behind the Focus card and the lock screen's since-count."""
+
+    def test_store_seen_and_since(self):
+        for i in range(3):
+            r = self.c.call("notifications.store", app="Mail", summary=f"msg {i}", body="hello", urgency="normal")
+            self.assertIn("id", r)
+        self.assertEqual(self.c.call("session.lock_info")["since_count"], 3)
+        recent = self.c.call("notifications.recent", limit=10)["notifications"]
+        self.assertEqual(len(recent), 3)
+        self.assertEqual(recent[0]["summary"], "msg 2")          # newest first
+        self.assertFalse(recent[0]["seen"])
+        self.c.call("notifications.seen")
+        self.assertEqual(self.c.call("session.lock_info")["since_count"], 0)
+        self.assertTrue(all(n["seen"] for n in self.c.call("notifications.recent", limit=10)["notifications"]))
+
+    def test_dnd_setting_and_focus_card(self):
+        self.c.call("settings.set", key="dnd", value=True)
+        self.assertTrue(self.c.call("settings.get")["dnd"])
+        self.c.call("notifications.store", app="Mail", summary="held", body="", urgency="normal")
+        cards = {c["id"]: c for c in self.c.call("cards.get")["cards"]}
+        self.assertIn("focus", cards)
+        self.assertIn("held", cards["focus"]["body"].lower())
+        self.assertIn("1", cards["focus"]["body"])
+        self.c.call("settings.set", key="dnd", value=False)
+        cards = {c["id"]: c for c in self.c.call("cards.get")["cards"]}
+        self.assertNotIn("focus", cards)                           # no DND, nothing held: no Focus card
+
+    def test_store_keeps_last_500_lines(self):
+        for i in range(520):
+            self.c.call("notifications.store", app="A", summary=str(i), body="", urgency="low")
+        recent = self.c.call("notifications.recent", limit=1000)["notifications"]
+        self.assertLessEqual(len(recent), 500)
+        self.assertEqual(recent[0]["summary"], "519")
+
+
 class TestSecurity(unittest.TestCase):
     def test_rejects_other_uid(self):
         tmp = tempfile.mkdtemp()

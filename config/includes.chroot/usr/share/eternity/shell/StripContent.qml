@@ -41,6 +41,7 @@ Item {
         anchors.right: parent.right; anchors.rightMargin: 28 * root.k
         height: parent.height
         spacing: 22 * root.k
+        Text { visible: Notifications.held > 0; text: "\u25cf " + Notifications.held; color: Theme.accent300; font.family: Theme.body; font.pixelSize: 13 * root.k; font.weight: Font.Medium; y: (parent.height - height) / 2 }
         Row {
             id: latency
             spacing: 6 * root.k
