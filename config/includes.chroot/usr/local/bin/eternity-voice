@@ -1,0 +1,28 @@
+#!/bin/sh
+# Push-to-talk: ask Eternity by voice (Super+V). Records until you stop talking, transcribes on this
+# device with whisper.cpp, runs a direct command ("open the terminal", "lock", "volume up") or asks
+# the assistant. Goes through eternity-daemon so the shell shows "Listening"; without the daemon
+# (classic session) it listens here and hands the text to eternity-ask.
+exec /usr/bin/python3 - "$@" <<'PY'
+import sys
+sys.path.insert(0, "/usr/lib/eternity/py")
+from eternity import daemon as D, voice as V
+try:
+    if D.available():
+        D.Client().call("voice.listen")
+        sys.exit(0)
+except Exception as e:  # noqa: BLE001
+    print(f"daemon: {e}", file=sys.stderr)
+try:
+    text = V.listen(on_state=lambda s: print(s, file=sys.stderr))
+except V.VoiceError as e:
+    print(e, file=sys.stderr); sys.exit(1)
+if not text:
+    print("nothing heard", file=sys.stderr); sys.exit(0)
+print(text)
+it = V.intent(text)
+if it:
+    import subprocess; subprocess.Popen(it[1], shell=True)
+else:
+    import subprocess; subprocess.Popen(["eternity-ask", text])
+PY

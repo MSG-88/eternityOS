@@ -33,7 +33,7 @@ while IFS='|' read -r role name file url sha licence licence_url; do
     fi
     # licence texts are nice to have; GitHub/HF hiccups must not fail a 40-minute build
     [ -s "$path.LICENSE" ] || dl "$licence_url" "$path.LICENSE" || { echo "warning: licence for $file not fetched ($licence_url)"; rm -f "$path.LICENSE"; }
-    ln -sfn "$file" "$DEST/$role.gguf"
+    ln -sfn "$file" "$DEST/$role.${file##*.}"    # default.gguf, stt.bin ...
     echo "$(sha256sum "$path" | cut -d' ' -f1)  $file" >> "$DEST/SHA256SUMS"
     size=$(stat -c %s "$path")
     json_entries+=("  \"$role\": {\"name\": \"$name\", \"file\": \"$file\", \"size\": $size, \"licence\": \"$licence\", \"source\": \"$url\"}")

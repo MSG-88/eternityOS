@@ -5,7 +5,7 @@
 # 43 000 Papirus icons in memory at startup (about 80 MB each, 1.3 GB per XFCE session).
 set -e
 rm -rf /var/cache/eternity-wheels
-rm -rf /usr/src/llama.cpp
+rm -rf /usr/src/llama.cpp /usr/src/whisper.cpp
 apt-get clean
 rm -rf /root/.cache /tmp/* /var/tmp/* 2>/dev/null || true
 rm -f /var/lib/apt/lists/*_Packages /var/lib/apt/lists/*_Sources 2>/dev/null || true

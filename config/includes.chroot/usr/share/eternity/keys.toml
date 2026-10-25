@@ -6,6 +6,7 @@ monitor = "SUPER, M"
 settings = "SUPER, comma"
 lock = "SUPER, L"
 terminal = "SUPER, Return"
+voice = "SUPER, V"
 home = "SUPER, Home"
 screenshot = ", Print"
 
@@ -17,6 +18,7 @@ monitor = "eternity-monitor"
 settings = "eternity-settings"
 lock = "eternity-lock"
 terminal = "xfce4-terminal"
+voice = "eternity-voice"
 home = "eternity-shell --home"
 screenshot = "grim -g \"$(slurp)\" - | wl-copy"
 
@@ -31,5 +33,5 @@ window_ring = "SUPER, Tab"
 # Compositor dispatchers (name = Hyprland dispatcher, value = keys)
 [dispatch]
 killactive = "SUPER, Q"
-togglefloating = "SUPER, V"
+togglefloating = "SUPER SHIFT, V"
 fullscreen = "SUPER, F11"

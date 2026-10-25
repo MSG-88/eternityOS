@@ -31,6 +31,7 @@ import os
 import selectors
 import socket
 import struct
+import subprocess
 import threading
 import time
 import uuid
@@ -42,6 +43,7 @@ from . import memory as M
 from . import cards as C
 from . import providers as P
 from . import settings as S
+from . import voice as V
 
 CONSENT_TIMEOUT_S = 600
 LOCK_ACK_S = 5.0
@@ -168,6 +170,9 @@ class Daemon:
         self.consents: Dict[str, dict] = {}
         self.run: Optional[dict] = None
         self.agent: Optional[G.Agent] = None
+        self.listener: Callable = V.listen          # voice input (tests inject a fake)
+        self.runner: Callable[[str], object] = lambda cmd: subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self._listening = False
         self.locked = False
         self._lock_event = threading.Event()
         self.history: Deque[dict] = collections.deque(maxlen=60)
@@ -179,6 +184,7 @@ class Daemon:
             "session.lock_info": self.m_lock_info, "pin.verify": self.m_pin,
             "hw.summary": self.m_hw, "launcher.index": self.m_launcher, "launcher.show": self.m_launcher_show, "launcher.launch": self.m_launcher_launch,
             "settings.show": self.m_settings_show, "metrics.history": self.m_metrics_history, "metrics.processes": self.m_processes, "monitor.show": self.m_monitor_show, "theme.get": self.m_theme_get, "theme.set": self.m_theme_set, "theme.presets": self.m_theme_presets, "theme.apply_preset": self.m_theme_preset,
+            "voice.listen": self.m_voice_listen,
             "memory.list": self.m_memory_list, "memory.remember": self.m_memory_remember, "memory.forget": self.m_memory_forget,
             "notifications.store": self.m_notif_store, "notifications.recent": self.m_notif_recent, "notifications.seen": self.m_notif_seen, "osd.show": self.m_osd, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
         }
@@ -606,6 +612,50 @@ class Daemon:
         if self.run and self.run["id"] == run_id:
             self.run["done"] = True
         self.emit("ask.done", data)
+
+    # -- voice (push-to-talk: Super+V, eternity-voice) ---------------------------------
+    def m_voice_listen(self, params: dict) -> dict:
+        """Record one utterance, transcribe it on this device, then run a direct command or ask."""
+        if self._listening:
+            raise DaemonError("already listening")
+        self._listening = True
+        threading.Thread(target=self._voice_worker, daemon=True).start()
+        return {"listening": True}
+
+    def _voice_worker(self) -> None:
+        state = lambda st, **kw: self.emit("voice.state", {"state": st, **kw})  # noqa: E731
+        try:
+            text = self.listener(lambda st: state(st))
+        except Exception as e:  # noqa: BLE001
+            state("error", text=str(e))
+            self._listening = False
+            return
+        text = (text or "").strip()
+        if not text:
+            state("idle", text="")
+            self._listening = False
+            return
+        it = V.intent(text)
+        state("heard", text=text, command=it[1] if it else "")
+        try:
+            if it:
+                self.runner(it[1])
+                self.memory_observe_voice(text, it[1])
+                state("done", text=text, command=it[1])
+            else:
+                self.emit("ask.show", {"text": text})
+                self.m_ask_start({"text": text})
+                state("done", text=text, command="")
+        except Exception as e:  # noqa: BLE001
+            state("error", text=str(e))
+        finally:
+            self._listening = False
+
+    def memory_observe_voice(self, text: str, command: str) -> None:
+        try:
+            self._memory().observe(text, [{"name": "voice_command", "command": command}])
+        except Exception:  # noqa: BLE001
+            pass
 
     # -- memory (what Eternity has learned about the user) ------------------------------
     def _memory(self) -> M.Memory:

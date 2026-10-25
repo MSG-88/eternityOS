@@ -204,6 +204,16 @@ Item {
     function appendStatus(text) { root.statusText = text; }
     function applyEvent(name, data) {
         if (name === "ask.show") { if (root.handlesConsent) root.show(data && data.text ? data.text : ""); return; }
+        if (name === "voice.state") {   // push-to-talk (Super+V): the bar opens and narrates the microphone
+            if (!root.handlesConsent) return;
+            const st = data.state;
+            if (st === "listening") { if (!root.active) root.show(""); root.answerText = ""; root.actions = []; root.statusText = "Listening … (stop talking to send)"; }
+            else if (st === "transcribing") root.statusText = "Heard you. Transcribing on this device …";
+            else if (st === "heard") root.statusText = data.command ? ("“" + data.text + "” → " + data.command) : "“" + data.text + "”";
+            else if (st === "idle") root.statusText = "Nothing heard.";
+            else if (st === "error") root.statusText = data.text;
+            return;
+        }
         if (name === "consent.request") {
             if (!root.handlesConsent) return;
             const id = data.consent_id;

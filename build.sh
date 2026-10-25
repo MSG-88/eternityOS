@@ -80,6 +80,9 @@ if [ -f ai/requirements.lock ]; then
     # pip's isolated build env resolves them from the same offline cache inside the chroot.
     .hostvenv/bin/pip download -q 'scikit-build-core==1.1.1' 'setuptools==84.2.1' 'wheel==0.48.0' -d "$WHEELS"
 fi
+if [ -f ai/whisper-cpp.version ]; then
+    install -D -m 644 ai/whisper-cpp.version config/includes.chroot/usr/lib/eternity/whisper-cpp.version
+fi
 if [ -f ai/llama-cpp.version ]; then
     install -D -m 644 ai/llama-cpp.version config/includes.chroot/usr/lib/eternity/llama-cpp.version
 fi

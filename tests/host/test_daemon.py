@@ -47,12 +47,12 @@ class Subscriber:
                     self.events.append(obj)
                     self.lock.notify_all()
 
-    def wait(self, name, timeout=10.0):
+    def wait(self, name, timeout=10.0, pred=None):
         deadline = time.time() + timeout
         with self.lock:
             while True:
                 for e in self.events:
-                    if e["event"] == name and not e.get("_seen"):
+                    if e["event"] == name and not e.get("_seen") and (pred is None or pred(e)):
                         e["_seen"] = True
                         return e["data"]
                 remaining = deadline - time.time()
@@ -60,8 +60,8 @@ class Subscriber:
                     raise AssertionError(f"no {name} event; got {[e['event'] for e in self.events]}")
                 self.lock.wait(remaining)
 
-    def collect_until(self, name, timeout=10.0):
-        self.wait(name, timeout)
+    def collect_until(self, name, timeout=10.0, pred=None):
+        self.wait(name, timeout, pred)
         with self.lock:
             return list(self.events)
 
@@ -168,6 +168,40 @@ class TestAsk(Base):
         self.assertEqual(m["recent"][0]["tools"], ["write_note"])
         self.assertEqual(self.c.call("memory.forget", pattern="tea")["removed"], 1)
         self.assertEqual(len(self.c.call("memory.list")["facts"]), 1)
+
+    def test_voice_listen_asks_what_was_heard(self):
+        self.d.listener = lambda on_state: (on_state("listening"), on_state("transcribing"), "save a note")[-1]
+        sub = Subscriber(self.sock_path)
+        self.c.call("voice.listen")
+        ev = sub.wait("consent.request")                      # the heard text became an ask (write_note needs consent at trust 0)
+        self.c.call("consent.reply", consent_id=ev["consent_id"], ok=True)
+        events = sub.collect_until("ask.done")
+        kinds = [e["event"] for e in events]
+        self.assertIn("voice.state", kinds)
+        states = [e["data"]["state"] for e in events if e["event"] == "voice.state"]
+        self.assertEqual(states[:3], ["listening", "transcribing", "heard"])
+        heard = next(e["data"] for e in events if e["event"] == "voice.state" and e["data"]["state"] == "heard")
+        self.assertEqual(heard["text"], "save a note")
+        self.assertIn("ask.show", kinds)
+
+    def test_voice_listen_runs_a_direct_command_without_the_model(self):
+        ran = []
+        self.d.listener = lambda on_state: "open the terminal"
+        self.d.runner = lambda cmd: ran.append(cmd)
+        sub = Subscriber(self.sock_path)
+        self.c.call("voice.listen")
+        events = sub.collect_until("voice.state", pred=lambda e: e["data"]["state"] in ("done", "idle"))
+        self.assertEqual(ran, ["xfce4-terminal"])
+        self.assertTrue(any(e["data"].get("command") == "xfce4-terminal" for e in events if e["event"] == "voice.state"))
+
+    def test_voice_listen_reports_a_missing_microphone(self):
+        def broken(on_state):
+            raise RuntimeError("no microphone capture tool (pw-record is missing)")
+        self.d.listener = broken
+        sub = Subscriber(self.sock_path)
+        self.c.call("voice.listen")
+        events = sub.collect_until("voice.state", pred=lambda e: e["data"]["state"] == "error")
+        self.assertIn("pw-record", events[-1]["data"]["text"])
 
     def test_declined_consent(self):
         sub = Subscriber(self.sock_path)

@@ -9,9 +9,9 @@ VENV=/opt/eternity/venv
 
 models() {
     local f
-    for role in default small; do
-        f=$MODELS_DIR/$role.gguf
-        if [ -f "$f" ]; then
+    for role in default small embed stt; do
+        f=$(ls "$MODELS_DIR/$role".* 2>/dev/null | grep -v '\.LICENSE$' | head -1)
+        if [ -n "$f" ] && [ -f "$f" ]; then
             printf '  %-8s %-32s %6s  %s\n' "$role" "$(basename "$(readlink -f "$f")")" \
                 "$(du -h "$(readlink -f "$f")" | cut -f1)" "$(grep -o "\"$role\": {[^}]*licence\": \"[^\"]*\"" "$MODELS_DIR/models.json" 2>/dev/null | sed 's/.*licence": "//;s/"//')"
         else
@@ -36,6 +36,11 @@ PY
             echo "         venv: $VENV  (activate: source $VENV/bin/activate)"
         else
             echo "Python:  venv missing at $VENV"
+        fi
+        if command -v whisper-cli >/dev/null; then
+            echo "whisper.cpp: $(cat /usr/local/share/whisper-cpp.version 2>/dev/null || echo installed)  (voice input: Super+V)"
+        else
+            echo "whisper.cpp: not installed (no voice input)"
         fi
         if command -v llama-cli >/dev/null; then
             echo "llama.cpp: $(cat /usr/local/share/llama-cpp.version 2>/dev/null || echo installed)  ($(command -v llama-cli))"

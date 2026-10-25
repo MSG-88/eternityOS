@@ -1,0 +1,20 @@
+#!/bin/sh
+# Build whisper.cpp (CPU, portable AVX2, static: no clash with llama.cpp's libggml) from the pinned
+# tag and install only whisper-cli. Voice input (eternity-voice) uses it with the bundled stt model.
+set -e
+TAG=$(cat /usr/lib/eternity/whisper-cpp.version)
+SRC=/usr/src/whisper.cpp
+rm -rf "$SRC"
+git clone --depth 1 --branch "$TAG" https://github.com/ggml-org/whisper.cpp "$SRC"
+cd "$SRC"
+cmake -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON \
+    -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON -DWHISPER_CURL=OFF
+cmake --build build -j"$(nproc)" --target whisper-cli
+install -m 755 build/bin/whisper-cli /usr/local/bin/whisper-cli
+echo "$TAG" > /usr/local/share/whisper-cpp.version
+cd /
+rm -rf "$SRC"
+whisper-cli --help 2>&1 | head -2 || true
