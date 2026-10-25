@@ -86,7 +86,7 @@ Item {
     Component {
         id: assistantPage
         Column {
-            SettingsRow { k: root.k; label: "Who answers"; Seg { objectName: "providers"; k: root.k; options: [{ id: "local", label: "On this device" }, { id: "claude_code", label: "Claude account" }, { id: "anthropic", label: "Claude key" }, { id: "openai", label: "ChatGPT key" }]; value: root.settings.provider || "local"; enabled: root.online; onChosen: id => { root.setSetting("provider", id); if (id !== "local") root.setSetting("on_device_only", false); } } }
+            SettingsRow { k: root.k; label: "Who answers"; Seg { objectName: "providers"; k: root.k; options: [{ id: "local", label: "On this device" }, { id: "claude_code", label: "Claude account" }, { id: "anthropic", label: "Claude key" }, { id: "openai", label: "ChatGPT key" }]; value: root.settings.provider || "local"; enabled: root.online; onChosen: id => root.setSetting("provider", id) } }
             SettingsRow { k: root.k; label: "Claude model"; Seg { k: root.k; options: ["sonnet", "opus", "haiku"]; value: root.settings.claude_code_model || "sonnet"; enabled: root.online; onChosen: id => root.setSetting("claude_code_model", id) } }
             SettingsRow { k: root.k; label: "Sign in"; hint: "Claude Code holds your sign-in in your home folder; Eternity keeps no credentials."
                 Rectangle { width: signLabel.implicitWidth + 24 * root.k; height: 32 * root.k; radius: Theme.radiusMd * root.k; color: "transparent"; border.width: 1; border.color: Theme.accent

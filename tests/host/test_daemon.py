@@ -427,6 +427,35 @@ class TestMonitor(Base):
         sub.wait("monitor.show")
 
 
+class TestSlice2Review(Base):
+    """Slice 2 review fixes: unlock marks notifications seen (I4), provider switch in one call (I7),
+    theme.set allow-list (I8)."""
+
+    def test_unlock_marks_seen(self):
+        self.c.call("notifications.store", app="A", summary="x", body="", urgency="normal")
+        self.assertEqual(self.c.call("session.lock_info")["since_count"], 1)
+        self.c.call("session.unlocked")
+        self.assertEqual(self.c.call("session.lock_info")["since_count"], 0)
+
+    def test_provider_switch_in_one_call(self):
+        self.c.call("settings.set", key="on_device_only", value=True)
+        r = self.c.call("settings.set", key="provider", value="anthropic")
+        self.assertEqual(r["provider"], "anthropic")
+        self.assertFalse(self.c.call("settings.get")["on_device_only"])
+        self.assertEqual(self.c.call("settings.get")["provider"], "anthropic")
+
+    def test_theme_set_allow_list(self):
+        os.environ["ETERNITY_SHARE"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "config", "includes.chroot", "usr", "share", "eternity")
+        from eternity import theme
+        theme.SHARE = os.environ["ETERNITY_SHARE"]
+        for kw in (dict(file="keys", section="action", key="lock", value="true"), dict(file="layout", key="exec_once", value=["x"]),
+                   dict(file="layout", key="blur_namespaces", value=[]), dict(file="theme", section="font", key="body", value="x")):
+            with self.assertRaises(D.DaemonError):
+                self.c.call("theme.set", **kw)
+        self.assertEqual(self.c.call("theme.set", file="layout", key="gaps", value=8)["layout"]["gaps"], 8)
+        self.assertEqual(self.c.call("theme.set", file="theme", section="color", key="accent", value="#2ec4b6")["theme"]["color"]["accent"], "#2ec4b6")
+
+
 class TestSecurity(unittest.TestCase):
     def test_rejects_other_uid(self):
         tmp = tempfile.mkdtemp()

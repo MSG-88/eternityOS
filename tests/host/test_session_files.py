@@ -96,13 +96,22 @@ class TestSessionFiles(unittest.TestCase):
         for p in ("greetd", "cage"):
             self.assertTrue(re.search(rf"^{p}$", pk, re.M), p)
         cfg = read("config/includes.chroot/etc/greetd/config.toml")
-        self.assertIn("cage -s -- eternity-greeter", cfg)
+        self.assertIn('command = "eternity-greeter"', cfg)          # the wrapper decides cage vs text fallback
+        self.assertNotIn("cage -s", cfg)
         self.assertIn('user = "_greetd"', cfg)
         g = read("config/includes.chroot/usr/local/bin/eternity-greeter")
         subprocess.run(["sh", "-n", os.path.join(ROOT, "config/includes.chroot/usr/local/bin/eternity-greeter")], check=True)
         self.assertIn("users.json", g)
-        self.assertIn("agreety", g)                      # text fallback when the QML greeter dies
-        self.assertIn("quickshell", g)
+        self.assertIn("cage -s -- eternity-greeter-scene", g)       # the scene runs under cage ...
+        self.assertLess(g.index("cage -s"), g.index("exec agreety"))   # ... and agreety runs after cage has exited, on the VT
+        self.assertNotIn("$5", g)                                     # no GECOS in the JSON
+        scene = read("config/includes.chroot/usr/local/bin/eternity-greeter-scene")
+        subprocess.run(["sh", "-n", os.path.join(ROOT, "config/includes.chroot/usr/local/bin/eternity-greeter-scene")], check=True)
+        self.assertIn("quickshell", scene)
+        tmpfiles = read("config/includes.chroot/usr/lib/tmpfiles.d/eternity-greeter.conf")
+        self.assertIn("d /run/eternity-greeter 0755 _greetd _greetd", tmpfiles)
+        dropin = read("config/includes.chroot/etc/systemd/system/greetd.service.d/eternity.conf")
+        self.assertIn("OnFailure=lightdm.service", dropin)
         self.assertTrue(os.path.exists(os.path.join(ROOT, "config/includes.chroot/usr/share/eternity/greeter/shell.qml")))
         hook = read("config/hooks/normal/0460-session.hook.chroot")
         for f in ("LockContent.qml", "GreeterContent.qml", "Theme.qml", "Geometry.qml", "Mobius.qml", "Wordmark.qml", "SystemClockFallback.qml"):
@@ -113,9 +122,12 @@ class TestSessionFiles(unittest.TestCase):
         s = read("config/includes.chroot/usr/lib/live/config/0032-eternity-session")
         self.assertIn("eternity.greeter=", s)
         branch = s[s.index("greetd)"):]
-        self.assertIn("systemctl disable lightdm", branch)
-        self.assertIn("systemctl enable greetd", branch)
-        self.assertNotIn("systemctl disable lightdm", s[:s.index("greetd)")])
+        self.assertIn("systemctl mask --runtime lightdm", branch)      # the queued lightdm job must not run on this boot
+        self.assertIn("--no-block start greetd", branch)
+        self.assertNotIn("systemctl mask", s[:s.index("greetd)")])
+        hook = read("config/hooks/normal/0460-session.hook.chroot")
+        self.assertIn("org.xfce.xfce4-notifyd.Notifications.service", hook)   # no D-Bus activation of xfce4-notifyd in the Eternity session
+        self.assertIn("xfce4-notifyd.service", hook)
         smoke = read("tests/smoke.sh")
         self.assertIn("greeter/shell.qml", smoke)
 

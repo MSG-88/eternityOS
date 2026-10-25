@@ -1,9 +1,10 @@
-# greetd: the Eternity greeter. cage runs the Quickshell unlock scene full screen; the scene
-# starts the chosen session through greetd. Active only when eternity.greeter=greetd selected it
-# (live-config component 0032) or Settings switched the display manager; lightdm stays otherwise.
+# greetd: the Eternity greeter. eternity-greeter runs the Quickshell unlock scene under cage and
+# falls back to the text greeter (agreety) on the VT when the scene cannot run. Active only when
+# eternity.greeter=greetd selected it (live-config component 0032) or Settings switched the display
+# manager; lightdm stays otherwise. greetd.service carries OnFailure=lightdm.service.
 [terminal]
 vt = 7
 
 [default_session]
-command = "cage -s -- eternity-greeter"
+command = "eternity-greeter"
 user = "_greetd"

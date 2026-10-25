@@ -12,6 +12,7 @@ Item {
     readonly property var sessions: [{ id: "eternity", label: "Eternity", cmd: ["eternity-session"] },
                                      { id: "xfce", label: "Eternity Classic", cmd: ["startxfce4"] }]
     property var authFn: null
+    property string greeting: "Good evening"
     signal launch(var cmd)
     onUsersChanged: if (!selectedUser && users.length) selectedUser = users[0]
 
@@ -20,7 +21,7 @@ Item {
         anchors.fill: parent
         k: root.k
         greeter: true
-        info: ({ greeting: "Good evening", name: "", since_count: 0, pin_available: false })
+        info: ({ greeting: root.greeting, name: "", since_count: 0, pin_available: false })
         authFn: root.authFn
         onUnlocked: root.startSession()
     }
@@ -59,6 +60,10 @@ Item {
                 MouseArea { anchors.fill: parent; onClicked: root.selectedSession = modelData.id }
             }
         }
+    }
+    Keys.onPressed: event => {   // keyboard account switch: Left/Right or Tab cycle the accounts
+        if (event.key === Qt.Key_Right || event.key === Qt.Key_Tab) { const i = root.users.indexOf(root.selectedUser); root.selectedUser = root.users[(i + 1) % Math.max(1, root.users.length)] || ""; event.accepted = true; }
+        else if (event.key === Qt.Key_Left) { const i = root.users.indexOf(root.selectedUser); root.selectedUser = root.users[(i - 1 + root.users.length) % Math.max(1, root.users.length)] || ""; event.accepted = true; }
     }
     function setPassword(pw) { lock.setPassword(pw); }
     function submit() { lock.submit(); }

@@ -25,8 +25,9 @@ Item {
         preferredRendererType: Shape.CurveRenderer
         ShapePath {
             strokeColor: root.color; strokeWidth: 1.5 * root.k; fillColor: "transparent"; capStyle: ShapePath.RoundCap
-            startX: root.pts.length && root.pts[0] ? root.pts[0].x : 0
-            startY: root.pts.length && root.pts[0] ? root.pts[0].y : root.height
+            readonly property var valid: root.pts.filter(p => p !== null)
+            startX: valid.length ? valid[0].x : 0
+            startY: valid.length ? valid[0].y : root.height
             PathPolyline { path: root.pts.filter(p => p !== null).map(p => Qt.point(p.x, p.y)) }
         }
     }

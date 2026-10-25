@@ -59,8 +59,9 @@ Item {
             Text { anchors.horizontalCenter: parent.horizontalCenter; y: 84 * root.k; text: tile.modelData.label; color: tile.sel ? Theme.text : Theme.n500; font.family: Theme.body; font.pixelSize: 12 * root.k; elide: Text.ElideRight; width: 120 * root.k; horizontalAlignment: Text.AlignHCenter }
         }
     }
-    NumberAnimation on r { running: root.animated; from: 150; to: 350; duration: Theme.popMs; easing.type: Easing.OutBack }
-    NumberAnimation on drift { running: root.animated; loops: Animation.Infinite; from: 0; to: Math.PI * 2; duration: 209440 }   // 0.03 rad/s
+    NumberAnimation { id: pop; target: root; property: "r"; from: 150; to: 350; duration: Theme.popMs; easing.type: Easing.OutBack }
+    NumberAnimation on drift { running: root.animated && root.visible; loops: Animation.Infinite; from: 0; to: Math.PI * 2; duration: 209440 }   // 0.03 rad/s, only while shown
+    onVisibleChanged: { if (visible && root.animated) pop.restart(); }
 
     function submit() {
         const it = root.visibleItems[root.selected];

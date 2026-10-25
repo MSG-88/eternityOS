@@ -31,7 +31,7 @@ PanelWindow {
         id: ring
         anchors.fill: parent; k: win.k; visible: win.mode === "windows"
         onClosed: win.mode = ""
-        onFocusRequested: id => { try { Hyprland.dispatch("focuswindow address:" + id); } catch (e) {} }
+        onFocusRequested: id => { try { const a = String(id); Hyprland.dispatch("focuswindow address:" + (a.indexOf("0x") === 0 ? a : "0x" + a)); } catch (e) {} }
         focus: visible
         Keys.onPressed: event => { if (keyPressed(event)) event.accepted = true; }
     }
@@ -39,12 +39,15 @@ PanelWindow {
         if (!win.panel) return;
         if (which === "launcher") { launcher.query = ""; launcher.load(); }
         else {
-            try { ring.windows = Hyprland.toplevels.values.map(t => ({ id: t.address, title: t.title, app: t.wayland ? t.wayland.appId : "" })); } catch (e) { ring.windows = []; }
+            try { const mon = Hyprland.monitorFor(screen); ring.windows = Hyprland.toplevels.values.filter(t => !mon || !t.monitor || t.monitor === mon).map(t => ({ id: t.address, title: t.title, app: t.wayland ? t.wayland.appId : "" })); } catch (e) { ring.windows = []; }
             ring.query = "";
         }
         win.mode = which;
         sweep.play();
     }
-    Connections { target: Daemon; function onEvent(name, data) { if (name === "launcher.show") win.open(win.mode === "launcher" ? "" : "launcher"); } }
-    GlobalShortcut { name: "window-ring"; appid: "quickshell"; onPressed: win.open("windows"); onReleased: { if (win.mode === "windows") ring.submit(); } }
+    // Super released alone: the launcher; while the window ring is open it selects (spec: release selects)
+    Connections { target: Daemon; function onEvent(name, data) { if (name !== "launcher.show" || !win.panel) return; if (win.mode === "windows") ring.submit(); else win.open(win.mode === "launcher" ? "" : "launcher"); } }
+    // Super+Tab (one global shortcut for the whole shell, see shell.qml): first press opens, further presses cycle
+    function windowRingPressed() { if (!win.panel) return; if (win.mode === "windows") ring.move(1); else win.open("windows"); }
+    Component.onCompleted: if (panel) Rings.panelLauncher = win
 }

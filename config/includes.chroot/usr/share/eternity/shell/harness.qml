@@ -49,7 +49,7 @@ ShellRoot {
                 sourceComponent: MonitorContent {
                     k: root.k
                     accel: root.scenario === "monitor-npu"
-                    metrics: root.scenario === "monitor-bare" ? ({ cpu: 18, mem_gb: 5.2, ai_tps: null, latency_ms: null, dropped_frames: 0 }) : ({ cpu: 18, mem_gb: 5.2, ai_tps: 170, latency_ms: 6, dropped_frames: 0 })
+                    metrics: root.scenario === "monitor-bare" ? ({ cpu: 18, mem_gb: 5.2, ai_tps: null, latency_ms: null, dropped_frames: null }) : ({ cpu: 18, mem_gb: 5.2, ai_tps: 170, latency_ms: 6, dropped_frames: 0 })
                     history: ({ series: { cpu: [12, 18, 25, 18, 20, 18], ai_tps: [null, 150, 170, 170, 165, 170], mem_gb: [5.0, 5.1, 5.2, 5.2, 5.2, 5.2], latency_ms: [8, 6, 7, 6, 5, 6] } })
                 }
             }
@@ -80,6 +80,8 @@ ShellRoot {
                     if (root.scenario === "notify") Notifications.push({ app: "Mail", summary: "3 new, 1 needs you", body: "Ola: shell spec v3 is ready for a read" });
                     if (root.scenario === "notify-storm") for (let i = 0; i < 50; i++) Notifications.push({ app: "App" + i, summary: "message " + i, body: "" });
                     if (root.scenario === "notify-dnd") { Notifications.dnd = true; Notifications.push({ app: "A", summary: "1", body: "" }); Notifications.push({ app: "B", summary: "2", body: "" }); }
+                    if (root.scenario === "notify-dnd-release") { Notifications.dnd = true; Notifications.push({ app: "A", summary: "1", body: "" }); Notifications.push({ app: "B", summary: "2", body: "" }); Notifications.dnd = false; }
+                    if (root.scenario === "notify-expire") { Notifications.push({ app: "Soon", summary: "gone", body: "", timeout: 150 }); Notifications.push({ app: "Critical", summary: "stays", body: "", urgency: "critical" }); }
                     if (root.scenario === "osd") item.osdItem.show("Volume", 0.65, "Volume 65%");
                 }
             }

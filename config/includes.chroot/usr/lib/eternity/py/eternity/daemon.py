@@ -49,6 +49,9 @@ INBUF_CAP_BYTES = 1024 * 1024
 # What a client may change over the socket. Credentials (unlock methods) and the trust level are
 # changed only through the Settings app, which writes the file: a process that can reach the
 # socket must not be able to lower the bar for its own actions.
+# What Settings may write through theme.set: appearance only; never commands, binds or the exec list
+THEME_SETTABLE = {("layout", "", "scale"), ("layout", "", "external_scale"), ("layout", "", "gaps"), ("layout", "", "border"), ("layout", "", "rounding"),
+                  ("layout", "", "strip_height"), ("theme", "color", "*"), ("theme", "motion", "*"), ("theme", "radius", "*")}
 SETTABLE = ("verbosity", "proactive", "voice", "name", "provider", "on_device_only", "claude_code_model", "claude_code_allow",
             "local_model", "hotkey", "agent_mode", "anthropic_model", "openai_model", "dnd")
 
@@ -444,6 +447,10 @@ class Daemon:
         if key not in SETTABLE:
             raise DaemonError(f"setting '{key}' cannot be changed here")
         cfg = self._fresh_cfg()
+        if key == "provider" and value != "local":
+            cfg.on_device_only = False     # choosing a cloud assistant is the explicit opt-out (validate() would reset the provider otherwise)
+        if key == "dnd":
+            value = bool(value) if not isinstance(value, str) else value.lower() in ("1", "true", "yes", "on")
         setattr(cfg, key, value)
         cfg.validate()                     # coerces bad values back to safe ones, never raises
         S.save(cfg)
@@ -670,6 +677,7 @@ class Daemon:
 
     def m_unlocked(self, params: dict) -> dict:
         self.locked = False
+        self.m_notif_seen({})          # "n things since you left" counts from now on
         return {"locked": False}
 
     def m_lock_info(self, params: dict) -> dict:
@@ -738,6 +746,8 @@ class Daemon:
         file, key, section = str(params.get("file", "")), str(params.get("key", "")), params.get("section")
         if file not in theme.FILES or not key:
             raise DaemonError("theme.set needs file (theme|layout|keys), key and value")
+        if (file, str(section or ""), key) not in THEME_SETTABLE and (file, str(section or ""), "*") not in THEME_SETTABLE:
+            raise DaemonError(f"{file}.{section + '.' if section else ''}{key} cannot be changed here (edit ~/.config/eternity/{file}.toml)")
         try:
             cfg = theme.set_value(file, key, params.get("value"), section=str(section) if section else None)
         except ValueError as e:

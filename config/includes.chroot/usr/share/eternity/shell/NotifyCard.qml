@@ -39,6 +39,7 @@ Rectangle {
             }
         }
     }
-    MouseArea { anchors.fill: parent; z: -1; onClicked: root.dismissed(root.item.id) }
+    MouseArea { anchors.fill: parent; z: -1; onClicked: { const def = (root.item.actions || []).find(a => a.id === "default"); if (def) root.action(root.item.id, "default"); else root.dismissed(root.item.id); } }
+    Timer { interval: Notifications.expiryMs(root.item); running: interval > 0; repeat: false; onTriggered: root.dismissed(root.item.id) }
     function geometry() { return [root.x, root.y, root.width, root.height, kicker.text]; }
 }

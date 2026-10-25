@@ -14,6 +14,7 @@ ShellRoot {
         blockLoading: true
         onLoaded: { try { root.users = JSON.parse(text()); } catch (e) { root.users = []; } }
     }
+    readonly property int hour: new Date().getHours()
     PanelWindow {
         id: win
         anchors { top: true; bottom: true; left: true; right: true }
@@ -22,7 +23,8 @@ ShellRoot {
             id: scene
             anchors.fill: parent
             k: Geometry.forScreen(win.screen)
-            users: root.users.map(u => u.name)
+            greeting: root.hour < 12 ? "Good morning" : root.hour < 18 ? "Good afternoon" : "Good evening"
+            users: root.users.map(u => typeof u === "string" ? u : u.name)
             authFn: (pw, mode, cb) => root.authenticate(pw, cb)
             onLaunch: cmd => Greetd.launch(cmd)
         }
@@ -36,6 +38,6 @@ ShellRoot {
         target: Greetd
         function onAuthMessage(message, error, responseRequired, echoResponse) { if (responseRequired && root.pending) Greetd.respond(root.pending.pw); }
         function onAuthFailure(message) { const p = root.pending; root.pending = null; if (p) p.cb(false); }
-        function onReadyToLaunch() { const p = root.pending; root.pending = null; if (p) p.cb(true); scene.startSession(); }
+        function onReadyToLaunch() { const p = root.pending; root.pending = null; if (p) p.cb(true); else scene.startSession(); }   // cb(true) -> unlocked -> startSession once
     }
 }

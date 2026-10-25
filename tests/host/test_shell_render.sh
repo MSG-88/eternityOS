@@ -147,6 +147,8 @@ render 1536 864 notify && {
     check notify 'it["card0"][4] == "Mail" and d["held"] == 0' "card shows the app as kicker; nothing held"
 }
 render 1536 864 notify-storm && check notify-storm 'd["cards_visible"] == 3 and d["held"] == 47 and d["queued"] == 47' "50 notifications: three cards, 47 held"
+render 1536 864 notify-dnd-release && check notify-dnd-release 'd["cards_visible"] == 2 and d["held"] == 0' "turning DND off shows what was held"
+render 1536 864 notify-expire && check notify-expire 'd["cards_visible"] == 1 and it["card0"][4] == "Critical"' "a normal card expires after its timeout; a critical one stays"
 render 1536 864 notify-dnd && check notify-dnd 'd["cards_visible"] == 0 and d["held"] == 2' "do not disturb: nothing shown, two held"
 render 1536 864 osd && check osd 'near(it["osd"][2], 240*k, 1) and near(it["osd"][1], 900*k, 2) and near(it["osd_fill"][2], 240*k*0.65, 2) and it["osd_label"][4] == "Volume 65%"' "OSD bar 240k at y 900k, 65 % fill"
 [ -f "$OUT/notify-storm/notify-storm.png" ] && ok "notify-storm.png written" || bad "notify-storm.png missing"
@@ -157,6 +159,7 @@ render 1536 864 settings-eternity && {
     check settings-eternity 'd["pages"] == ["Eternity", "Assistant", "Devices", "Network", "Sound", "Power", "Appearance", "Keys"] and d["page"] == "Eternity"' "eight pages, Eternity first"
     check settings-eternity 'd["telemetry_enabled"] is False and d["telemetry_on"] is False' "telemetry switch off and disabled"
 }
+render 1100 720 settings-window && check settings-window 'it["column"][0] + it["column"][2] <= 1100 and it["column"][0] >= 400 and it["row0"][2] <= 700*k + 1' "the real window size keeps the column inside the window"
 render 1536 864 settings-offline && check settings-offline 'd["controls_enabled"] is False and it["offline"][4].find("not running") >= 0' "daemon down: controls disabled with a line"
 render 1536 864 settings-appearance && check settings-appearance 'd["page"] == "Appearance" and d["presets"] == ["Nocturne", "Nocturne Light", "Mono", "High contrast", "Quiet"] and d["scales"] == [1, 1.25, 1.5]' "appearance: presets and scales"
 render 1536 864 settings-assistant && check settings-assistant 'd["page"] == "Assistant" and d["providers"] >= 3 and d["allow_tools"] >= 8' "assistant: providers and allow-list"
@@ -171,7 +174,7 @@ render 1536 864 monitor && {
     check monitor 'd["labels"] == ["CPU", "AI", "Memory", "Input latency"] and it["value0"][4] == "18%" and it["value2"][4] == "5.2 GB" and it["value3"][4] == "6 ms"' "panel labels and values from the metrics"
     check monitor 'it["value1"][4] == "170 tok/s"' "AI panel shows tok/s"
 }
-render 1536 864 monitor-bare && check monitor-bare 'it["value1"][4] == "idle" and it["value3"][4] == "\u2014" and d["labels"][1] == "AI" and d["npu"] is False' "no AI run, no latency: idle and a dash, never a zero"
+render 1536 864 monitor-bare && check monitor-bare 'it["value1"][4] == "idle" and it["value3"][4] == "\u2014" and d["labels"][1] == "AI" and d["npu"] is False and it["status"][4].find("0 DROPPED") < 0 and it["status"][4].find("DROPPED FRAMES") >= 0 and it["status"][4].find("1 HZ") >= 0 and it["status"][4].find(" \u2014 ") >= 0' "no AI run, no latency, no frame data: idle and dashes, never a zero"
 render 1536 864 monitor-npu && check monitor-npu 'd["labels"][1] == "NPU" and d["npu"] is True' "an accel device turns the AI panel into NPU"
 [ -f "$OUT/monitor/monitor.png" ] && ok "monitor.png written" || bad "monitor.png missing"
 render 1536 864 latency && check latency 'd["lat_count"] == 20 and near(d["lat_p95"], 19, 1) and d["lat_file"].endswith("/eternity/latency.json")' "latency samples: p95 of 20 samples"

@@ -9,10 +9,10 @@ Scope {
         id: win
         visible: root.shown
         title: "Settings \u00b7 Eternity"
-        implicitWidth: Math.round(1100 * k); implicitHeight: Math.round(720 * k)
+        implicitWidth: 1100; implicitHeight: 720
         color: Theme.bg
-        readonly property real k: Geometry.k(1920, 1080) * 0.8
-        SettingsContent { anchors.fill: parent; k: win.k * 1.25 }
+        readonly property real k: Geometry.k(win.width, win.height)        // the design's 1920x1080 geometry scaled to this window
+        SettingsContent { anchors.fill: parent; k: win.k }
         onVisibleChanged: if (!visible) root.shown = false
     }
     Connections { target: Daemon; function onEvent(name, data) { if (name === "settings.show") root.shown = true; } }

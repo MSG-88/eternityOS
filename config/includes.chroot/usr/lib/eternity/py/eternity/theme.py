@@ -246,8 +246,14 @@ def apply_preset(preset_id: str, user_dir: Optional[str] = None) -> dict:
     p = next((x for x in presets() if x["id"] == preset_id), None)
     if p is None:
         raise ValueError(f"unknown preset {preset_id}")
-    keep_layout = {k: v for k, v in user_overlay("layout", user_dir).items() if k in ("scale", "external_scale", "panel")}
-    write_user("theme", {**p["theme"], "_preset": preset_id} if False else p["theme"], user_dir)
+    keep_layout = {k: v for k, v in user_overlay("layout", user_dir).items() if k not in ("gaps", "border", "rounding")}
+    cfg = load(user_dir)
+    cfg["theme"] = _merge(cfg["theme"], p["theme"])
+    cfg["layout"] = _merge(cfg["layout"], {**keep_layout, **p["layout"]})
+    errors = validate(cfg)
+    if errors:
+        raise ValueError("; ".join(errors))
+    write_user("theme", p["theme"], user_dir)
     write_user("layout", {**keep_layout, **p["layout"]}, user_dir)
     render(None if user_dir is None else os.path.join(user_dir, "generated"), load(user_dir))
     return load(user_dir)

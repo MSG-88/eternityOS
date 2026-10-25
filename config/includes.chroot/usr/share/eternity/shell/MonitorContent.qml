@@ -22,7 +22,7 @@ Item {
     readonly property var seriesKeys: ["cpu", "ai_tps", "mem_gb", "latency_ms"]
     readonly property var maxes: [100, 300, 16, 50]
     readonly property var positions: [[180, 220], [1340, 220], [180, 680], [1340, 680]]
-    readonly property int dropped: (metrics && metrics.dropped_frames) ? metrics.dropped_frames : 0
+    readonly property string droppedText: (metrics && metrics.dropped_frames !== null && metrics.dropped_frames !== undefined) ? String(metrics.dropped_frames) : "\u2014"
 
     Rectangle { anchors.fill: parent; color: Theme.bg }
     Shape {   // the ring: track + accent arc (CPU load)
@@ -55,7 +55,7 @@ Item {
     Text {
         id: status
         anchors.horizontalCenter: parent.horizontalCenter; y: 880 * root.k
-        text: "CPU LOAD \u00b7 " + (root.hasCpu ? Math.round(root.cpu) + "%" : "\u2014") + " \u00b7 1 HZ SAMPLING \u00b7 " + root.dropped + " DROPPED FRAMES"
+        text: "CPU LOAD \u00b7 " + (root.hasCpu ? Math.round(root.cpu) + "%" : "\u2014") + " \u00b7 1 HZ SAMPLING \u00b7 " + root.droppedText + " DROPPED FRAMES"
         color: Theme.n500; font.family: Theme.body; font.pixelSize: 13 * root.k; font.letterSpacing: 1.3 * root.k
     }
     function refresh() { Daemon.call("metrics.history", {}, (r, e) => { if (r) { root.history = r; root.accel = !!r.accel; } }); }
