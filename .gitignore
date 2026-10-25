@@ -29,3 +29,5 @@ tests/out/
 __pycache__/
 config/includes.chroot/var/cache/
 .hostvenv/
+tools/elevated/out/
+tests/out/hyperv/
