@@ -592,3 +592,16 @@ smoke (PASS) and the new offscreen shell render test (`tests/host/test_shell_ren
 
 Results are appended when the chain has run (it starts automatically after the resumed build 11
 chain; `/srv/eternity-build/out/build13-run.log`, ends with `BUILD13 DONE`).
+
+## Build 13 splash: boot-log lines drew as boxes (fixed for build 14)
+
+The GRUB menu was fine; the Plymouth boot log (left column) rendered every glyph as a hollow box of
+the glyph's width. Cause, verified against the extracted initramfs: Debian's plymouth initramfs hook
+links `/usr/share/fonts/Plymouth.ttf` to fc-match's default font inside the initramfs only, and
+fontconfig there resolves "Sans" to that symlink (it sorts before the `truetype/` directory). Plymouth
+is then moved into the real root (`plymouth --newroot`) before `eternity-bootlog.service` sends the
+lines; cairo cannot open the remembered path, and Pango strokes a box per glyph (`draw_unknown_glyph`).
+Adding `fonts-dejavu-core` (build 12) could not help. Fix: the splash uses Inter, which the
+`eternity-fonts` initramfs hook ships at its real-root path, and the theme hook creates the same
+`Plymouth*.ttf` links in the real root. Tests: `tests/host/test_splash_fonts.py`. Verified visually
+with the next build's `splash.png`.

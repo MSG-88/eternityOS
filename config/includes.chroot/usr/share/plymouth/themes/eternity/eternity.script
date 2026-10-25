@@ -65,7 +65,7 @@ fun log_add(text) {
     for (i = 0; i < log.count; i++) {
         if (i + 1 < 10) num = "0" + (i + 1);
         else num = "" + (i + 1);
-        img = Image.Text(num + "   " + log.text[i], 0.58, 0.61, 0.67, 1, "Sans 11");
+        img = Image.Text(num + "   " + log.text[i], 0.58, 0.61, 0.67, 1, "Inter 11");
         if (log.sprite[i] == NULL) log.sprite[i] = Sprite();
         log.sprite[i].SetImage(img);
         log.sprite[i].SetPosition(log.x, log.y + i * log.line_h, 6);
@@ -106,6 +106,8 @@ fun refresh_callback() {
 }
 Plymouth.SetRefreshFunction(refresh_callback);
 
+// Fonts: Inter is shipped in the initramfs at its real-root path by the eternity-fonts hook;
+// a family that only exists in one of the two roots draws boxes after plymouth --newroot.
 // Boot progress is implied by the log; the systemd messages drive the lines.
 fun message_callback(text) {
     if (text != "") log_add(text);
@@ -118,7 +120,7 @@ prompt.sprite.SetPosition(0, word.y + 60 * scale, 7);
 fun password_callback(text, bullets) {
     dots = "";
     for (i = 0; i < bullets; i++) dots += "•";
-    img = Image.Text(text + "  " + dots, 0.91, 0.91, 0.93, 1, "Sans 12");
+    img = Image.Text(text + "  " + dots, 0.91, 0.91, 0.93, 1, "Inter 12");
     prompt.sprite.SetImage(img);
     prompt.sprite.SetX(screen.w / 2 - img.GetWidth() / 2);
 }

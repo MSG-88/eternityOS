@@ -74,7 +74,9 @@ the build chroot without a VM.
 ```
 
 Boot the laptop from the stick (MSI: press F11 at power-on and pick the USB
-device). Secure Boot can stay enabled.
+device; ASUS ROG: Esc or F8 at power-on, pick the stick in the one-time boot menu and leave
+the boot order alone). Secure Boot can stay enabled. Per-machine notes and the test plan for
+the second test laptop, an ASUS ROG Strix SCAR 16 G635LW, are in `docs/hardware/asus-g635lw.md`.
 
 **Write the image raw.** The ISO is a hybrid image: copied byte for byte it brings its
 own partition table (an EFI System Partition with shim and GRUB, the ISO9660 filesystem

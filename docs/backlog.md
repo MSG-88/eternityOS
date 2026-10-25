@@ -121,7 +121,11 @@ Recorded verbatim in substance; status marks as above. Plan: `docs/superpowers/s
   drivers, missing firmware, radios, sound, power) also available to the assistant as
   `hardware_report` and checked by the self-test. ○ Needs the owner's exact symptoms (what
   "BIOS" meant: the boot menu, legacy boot, brightness/Fn keys, suspend?) and the
-  `eternity-hw` output from the laptop to close the remaining gaps.
+  `eternity-hw` output from the laptop to close the remaining gaps. ○ Second test machine
+  captured 2026-10-25, ASUS ROG Strix SCAR 16 G635LW (`docs/hardware/asus-g635lw.md`): the RTX
+  5080 (GB203) needs the GSP firmware from `trixie-backports` before nouveau, and so the Eternity
+  session, can run there; NVMe behind Intel VMD (`vmd` is in the initramfs); disk full, so live
+  sessions only until Windows frees space; the Self-test entry is silent on it (no serial port).
 - **UI/UX "a mere copy of Ubuntu".** Expected: a completely unique, high-tech look with its
   own navigation. ◐ Build 13 (slice 1): the Eternity session on Hyprland with the Quickshell shell
   (strip, presence, Ask bar, consent, lock) at the design's geometry, 125 % scale, next to XFCE.

@@ -20,3 +20,10 @@ fi
 
 # fc-cache for the shipped fonts (used by Plymouth's text and the greeter)
 fc-cache -f >/dev/null 2>&1 || true
+
+# Debian's plymouth initramfs hook links /usr/share/fonts/Plymouth{,-monospace}.ttf to fc-match's
+# defaults inside the initramfs only. Plymouth keeps whatever path it resolved there after it is
+# moved to the real root, so the same links must exist here as well (build 13 drew boxes).
+f=$(fc-match -f %{file} 2>/dev/null); [ -n "$f" ] && ln -sfn "$f" /usr/share/fonts/Plymouth.ttf || true
+f=$(fc-match -f %{file} monospace 2>/dev/null); [ -n "$f" ] && ln -sfn "$f" /usr/share/fonts/Plymouth-monospace.ttf || true
+chmod 755 /etc/initramfs-tools/hooks/eternity-fonts
