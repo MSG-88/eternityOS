@@ -1,0 +1,28 @@
+# Eternity 08 — key map (Hyprland bind syntax: MODS, key). Override in ~/.config/eternity/keys.toml.
+[bind]
+ask = "SUPER, space"
+launcher = "SUPER, code:133"
+files = "SUPER, F"
+monitor = "SUPER, M"
+settings = "SUPER, comma"
+lock = "SUPER, L"
+terminal = "SUPER, Return"
+home = "SUPER, Home"
+screenshot = ", Print"
+
+[action]
+ask = "eternity-ask --show"
+launcher = "eternity-launcher"
+files = "eternity-find"
+monitor = "eternity-monitor"
+settings = "eternity-settings"
+lock = "eternity-lock"
+terminal = "xfce4-terminal"
+home = "eternity-shell --home"
+screenshot = "grim -g \"$(slurp)\" - | wl-copy"
+
+# Compositor dispatchers (name = Hyprland dispatcher, value = keys)
+[dispatch]
+killactive = "SUPER, Q"
+togglefloating = "SUPER, V"
+fullscreen = "SUPER, F11"

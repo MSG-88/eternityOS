@@ -1,0 +1,40 @@
+# Eternity 08 — Nocturne tokens (the design system's styles.css, one source for the shell,
+# Hyprland, GTK apps and the terminal). Override any key in ~/.config/eternity/theme.toml.
+[color]
+bg = "#161826"
+surface = "#232532"
+text = "#e9e9ed"
+accent = "#9184d9"
+accent_100 = "#f5f4ff"
+accent_200 = "#e7e5fe"
+accent_300 = "#d2cefd"
+accent_400 = "#b5abfc"
+accent_600 = "#796cbf"
+accent_700 = "#5d5294"
+accent_800 = "#423a6a"
+accent_900 = "#2b2741"
+n400 = "#b2b6ca"
+n500 = "#9397ab"
+n600 = "#75798c"
+n700 = "#595d6c"
+n800 = "#3f424d"
+n900 = "#292b31"
+
+[radius]
+sm = 4
+md = 8
+lg = 14
+
+[font]
+body = "Inter"
+tech = "Michroma"
+mono = "JetBrains Mono"
+
+[motion]
+enter_ms = 700      # eased entrances (easeOutCubic)
+draw_ms = 800       # drawn strokes, scans (easeInOutSine)
+pop_ms = 600        # pops (easeOutBack)
+sweep_ms = 800      # view-change sweep (grid flash + scan line)
+decode_cps = 28     # decoding text, characters per second
+reduced = false     # true: no sweeps, no decode, no glow breathing, Hyprland animations off
+glow = 1.0          # presence glow intensity (design tweak: 0.3 .. 1.8)
