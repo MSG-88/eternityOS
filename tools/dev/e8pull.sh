@@ -33,5 +33,8 @@ for f in LockContent.qml GreeterContent.qml Theme.qml Geometry.qml Mobius.qml Wo
     [ -f /usr/share/eternity/greeter/$f ] && cp -f /usr/share/eternity/shell/$f /usr/share/eternity/greeter/$f
 done
 U=${SUDO_USER:-eternity}
-sudo -u "$U" -H sh -c 'eternity-theme render >/dev/null 2>&1; hyprctl reload >/dev/null 2>&1; pkill -f "from eternity import daemon"; pkill quickshell'   # the daemon is python3 -c "...from eternity import daemon..." (pkill -f takes a regex: no parentheses) || true
+UID_U=$(id -u "$U"); RT=/run/user/$UID_U; SIG=$(ls "$RT/hypr" 2>/dev/null | head -1)
+# Restart daemon and shell as the session user (tools/dev/e8restart.sh; hyprctl needs the instance
+# signature, which sudo -H drops, hence env).
+RS=$(mktemp) && curl -fsS "http://$HOST:8790/tools/dev/e8restart.sh" -o "$RS" && chmod 644 "$RS"     && sudo -u "$U" -H env XDG_RUNTIME_DIR="$RT" HYPRLAND_INSTANCE_SIGNATURE="$SIG" sh "$RS"; rm -f "$RS"
 echo "e8pull done: daemon and shell restarting"

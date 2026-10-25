@@ -38,6 +38,7 @@ from typing import Callable, Deque, Dict, List, Optional
 
 from . import actions as A
 from . import agent as G
+from . import memory as M
 from . import cards as C
 from . import providers as P
 from . import settings as S
@@ -53,7 +54,7 @@ INBUF_CAP_BYTES = 1024 * 1024
 THEME_SETTABLE = {("layout", "", "scale"), ("layout", "", "external_scale"), ("layout", "", "gaps"), ("layout", "", "border"), ("layout", "", "rounding"),
                   ("layout", "", "strip_height"), ("theme", "color", "*"), ("theme", "motion", "*"), ("theme", "radius", "*")}
 SETTABLE = ("verbosity", "proactive", "voice", "name", "provider", "on_device_only", "claude_code_model", "claude_code_allow",
-            "local_model", "hotkey", "agent_mode", "anthropic_model", "openai_model", "dnd", "trust_level")
+            "local_model", "hotkey", "agent_mode", "anthropic_model", "openai_model", "dnd", "trust_level", "learning")
 
 
 class DaemonError(Exception):
@@ -178,6 +179,7 @@ class Daemon:
             "session.lock_info": self.m_lock_info, "pin.verify": self.m_pin,
             "hw.summary": self.m_hw, "launcher.index": self.m_launcher, "launcher.show": self.m_launcher_show, "launcher.launch": self.m_launcher_launch,
             "settings.show": self.m_settings_show, "metrics.history": self.m_metrics_history, "metrics.processes": self.m_processes, "monitor.show": self.m_monitor_show, "theme.get": self.m_theme_get, "theme.set": self.m_theme_set, "theme.presets": self.m_theme_presets, "theme.apply_preset": self.m_theme_preset,
+            "memory.list": self.m_memory_list, "memory.remember": self.m_memory_remember, "memory.forget": self.m_memory_forget,
             "notifications.store": self.m_notif_store, "notifications.recent": self.m_notif_recent, "notifications.seen": self.m_notif_seen, "osd.show": self.m_osd, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
         }
         # methods answered on a worker thread because they block on the user or on slow probes
@@ -604,6 +606,27 @@ class Daemon:
         if self.run and self.run["id"] == run_id:
             self.run["done"] = True
         self.emit("ask.done", data)
+
+    # -- memory (what Eternity has learned about the user) ------------------------------
+    def _memory(self) -> M.Memory:
+        return self._make_agent().memory
+
+    def m_memory_list(self, params: dict) -> dict:
+        m = self._memory()
+        return {"facts": m.facts(), "recent": m.recent()[: int(params.get("limit", 10))], "tools": m.tool_counts(), "enabled": m.enabled}
+
+    def m_memory_remember(self, params: dict) -> dict:
+        text = str(params.get("text", "")).strip()
+        if not text:
+            raise DaemonError("nothing to remember")
+        fact = self._memory().remember(text)
+        return {"fact": fact, "facts": len(self._memory().facts())}
+
+    def m_memory_forget(self, params: dict) -> dict:
+        pattern = str(params.get("pattern", "")).strip()
+        if not pattern:
+            raise DaemonError("what should be forgotten?")
+        return {"removed": self._memory().forget(pattern)}
 
     def m_ask_cancel(self, params: dict) -> dict:
         if self.run and not self.run.get("done"):

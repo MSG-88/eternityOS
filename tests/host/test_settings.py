@@ -22,6 +22,10 @@ class SettingsTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_learning_is_on_by_default_and_settable(self):
+        self.assertTrue(S.Settings().learning)
+        self.assertFalse(S.Settings(learning=False).validate().learning)
+
     def test_defaults_are_private_and_local(self):
         s = S.load()
         self.assertEqual(s.provider, "local")

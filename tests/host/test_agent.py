@@ -12,6 +12,7 @@ os.environ["ETERNITY_NO_KEYRING"] = "1"
 
 from eternity import actions as A  # noqa: E402
 from eternity import agent as G  # noqa: E402
+from eternity import memory as M  # noqa: E402
 from eternity import providers as P  # noqa: E402
 from eternity import settings as S  # noqa: E402
 
@@ -119,6 +120,23 @@ class AgentTest(unittest.TestCase):
         self.assertIn("Wayland", k)
         self.assertIn("Eternity shell", k)
         self.assertNotIn("xfwm4", k)
+
+    def test_system_prompt_carries_what_the_user_told_eternity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mem = M.Memory(path=os.path.join(tmp, "m.json"))
+            mem.remember("I am a developer who prefers short answers")
+            s = G.system_prompt(S.Settings(), memory=mem)
+        self.assertIn("I am a developer who prefers short answers", s)
+        self.assertNotIn("What the user has told you", G.system_prompt(S.Settings()))
+
+    def test_agent_observes_each_ask_into_memory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mem = M.Memory(path=os.path.join(tmp, "m.json"))
+            prov = ScriptedProvider([[("text", "Noted."), ("done", P.Metrics(provider="scripted"))]])
+            agent = G.Agent(consent=lambda t, a: True, cfg=S.Settings(), provider=prov, memory=mem)
+            list(agent.ask("remember that I work on Eternity"))
+            self.assertEqual([f["text"] for f in mem.facts()], ["I work on Eternity"])
+            self.assertEqual(mem.recent()[0]["q"], "remember that I work on Eternity")
 
     def test_os_knowledge_names_xfce_in_the_classic_session(self):
         env = {"XDG_CURRENT_DESKTOP": "XFCE"}

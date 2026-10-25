@@ -155,6 +155,20 @@ class TestAsk(Base):
         self.assertEqual("".join(e["data"]["delta"] for e in events if e["event"] == "ask.text"), "Saving. Done.")
         self.assertIn("removed", self.c.call("ask.undo")["message"])
 
+    def test_memory_methods_and_asks_are_observed(self):
+        r = self.c.call("memory.remember", text="I like tea")
+        self.assertEqual(r["facts"], 1)
+        sub = Subscriber(self.sock_path)
+        self.c.call("ask.start", text="remember that I prefer short answers, then save a note")
+        ev = sub.wait("consent.request")
+        self.c.call("consent.reply", consent_id=ev["consent_id"], ok=True)
+        sub.collect_until("ask.done")
+        m = self.c.call("memory.list")
+        self.assertEqual([f["text"] for f in m["facts"]], ["I like tea", "I prefer short answers, then save a note"])
+        self.assertEqual(m["recent"][0]["tools"], ["write_note"])
+        self.assertEqual(self.c.call("memory.forget", pattern="tea")["removed"], 1)
+        self.assertEqual(len(self.c.call("memory.list")["facts"]), 1)
+
     def test_declined_consent(self):
         sub = Subscriber(self.sock_path)
         self.c.call("ask.start", text="save a note")

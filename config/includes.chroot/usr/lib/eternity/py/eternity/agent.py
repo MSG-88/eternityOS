@@ -15,6 +15,7 @@ import subprocess
 from typing import Callable, Iterator, List, Optional, Tuple
 
 from . import actions as A
+from . import memory as M
 from . import providers as P
 from . import settings as S
 
@@ -85,7 +86,7 @@ def session_description() -> str:
     return f"session: the classic {desktop} desktop (X11) with the xfwm4 window manager"
 
 
-def system_prompt(cfg: S.Settings) -> str:
+def system_prompt(cfg: S.Settings, memory: Optional["M.Memory"] = None) -> str:
     style = {"brief": "Answer in one or two short sentences.",
              "normal": "Answer concisely, in a few sentences unless more is needed.",
              "detailed": "Answer thoroughly with the relevant details."}[cfg.verbosity]
@@ -94,19 +95,23 @@ def system_prompt(cfg: S.Settings) -> str:
              "Every action is shown to the user for confirmation before it runs and can be undone; "
              "never pretend an action happened if the tool result says it was declined or failed."
              if cfg.agent_mode else "You cannot run actions in this session; explain what the user can do.")
+    known = memory.prompt_section() if memory is not None else ""
+    learned = f"\n\nWhat you know about this user (learned on this device, never sent anywhere else):\n{known}" if known else ""
     return (f"You are Eternity, the assistant built into Eternity 08, a personal operating system.{name} "
-            f"{style} Be warm and direct, no filler. {agent}\n\nAbout this machine and OS:\n{os_knowledge()}")
+            f"{style} Be warm and direct, no filler. {agent}\n\nAbout this machine and OS:\n{os_knowledge()}{learned}")
 
 
 class Agent:
     def __init__(self, consent: Callable[[A.Tool, dict], bool], cfg: Optional[S.Settings] = None,
                  provider: Optional[P.Provider] = None, secrets: Optional[S.SecretStore] = None,
-                 broker: Optional[A.ActionBroker] = None):
+                 broker: Optional[A.ActionBroker] = None, memory: Optional[M.Memory] = None):
         self.cfg = cfg or S.load()
         self.secrets = secrets
         self._provider = provider
         self.broker = broker or A.ActionBroker(consent, cfg=self.cfg)
         self.history: List[dict] = []
+        self.memory = memory if memory is not None else M.Memory(enabled=self.cfg.learning)
+        self.memory.enabled = self.cfg.learning
 
     @property
     def provider(self) -> P.Provider:
@@ -118,9 +123,23 @@ class Agent:
         self.history = []
 
     def ask(self, question: str) -> Iterator[Tuple[str, object]]:
+        """Runs the question; records it (and the tools used) in memory when the answer is done."""
+        actions: List[dict] = []
+        try:
+            for kind, payload in self._ask(question):
+                if kind == "action" and isinstance(payload, dict):
+                    actions.append(payload)
+                yield (kind, payload)
+        finally:
+            try:
+                self.memory.observe(question, actions)
+            except Exception:  # noqa: BLE001  (memory must never break an answer)
+                pass
+
+    def _ask(self, question: str) -> Iterator[Tuple[str, object]]:
         self.history.append({"role": "user", "content": question})
         tools = self.broker.schemas() if self.cfg.agent_mode else None
-        system = system_prompt(self.cfg)
+        system = system_prompt(self.cfg, self.memory)
         last_metrics = None
         try:
             provider = self.provider

@@ -55,6 +55,7 @@ class Settings:
     agent_mode: bool = True              # the assistant may propose actions (tools)
     hotkey: str = "<Super>space"
     dnd: bool = False                    # do not disturb: notifications are held (Focus card), not shown
+    learning: bool = True                # Eternity remembers what the user tells it and how they work (memory.py, local only)
 
     def validate(self) -> "Settings":
         if self.provider not in PROVIDERS:
