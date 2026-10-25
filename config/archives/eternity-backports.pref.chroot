@@ -1,5 +1,6 @@
-# The Eternity session stack comes from trixie-backports (Hyprland 0.55, Quickshell 0.3 and
-# their libraries); everything else stays on trixie.
-Package: hyprland quickshell hypridle xdg-desktop-portal-hyprland hyprland-protocols hyprutils* hyprlang* hyprcursor* hyprgraphics* aquamarine*
+# The Eternity session stack comes from trixie-backports (Hyprland 0.55, Quickshell 0.3 and the
+# libraries they need: hypr* libs, aquamarine, libxkbcommon >= 1.12, wayland-protocols); everything
+# else stays on trixie. Build 13 attempt 2 failed because libxkbcommon0 was not pinned.
+Package: hyprland quickshell hypridle hyprlock hyprpaper xdg-desktop-portal-hyprland hyprland-protocols hyprutils* hyprlang* hyprcursor* hyprgraphics* hyprwire* aquamarine* libaquamarine* libhypr* libudis86-0 wayland-protocols libxkbcommon* libxkbregistry* xkb-data
 Pin: release n=trixie-backports
 Pin-Priority: 600

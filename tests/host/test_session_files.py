@@ -29,7 +29,9 @@ class TestSessionFiles(unittest.TestCase):
 
     def test_backports_pin(self):
         pref = read("config/archives/eternity-backports.pref.chroot")
-        self.assertIn("Package: hyprland quickshell hypridle xdg-desktop-portal-hyprland hyprland-protocols hyprutils* hyprlang* hyprcursor* hyprgraphics* aquamarine*", pref)
+        self.assertIn("Package: hyprland quickshell hypridle", pref)
+        for p in ("libhypr*", "libaquamarine*", "libxkbcommon*", "wayland-protocols"):
+            self.assertIn(p, pref)   # hyprland 0.55 needs these from backports too (build 13 attempt 2)
         self.assertIn("Pin: release n=trixie-backports", pref)
         self.assertIn("Pin-Priority: 600", pref)
 
