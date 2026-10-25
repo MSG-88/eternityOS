@@ -72,3 +72,12 @@ class CardsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAiCardModel(unittest.TestCase):
+    def test_claude_code_card_names_its_own_model(self):
+        # 2026-10-26 on the installed VM: the card said "gpt-5.1" under "Claude (your Claude account)"
+        import eternity.cards as C, eternity.settings as S
+        cfg = S.Settings(provider="claude_code", on_device_only=False, claude_code_model="opus", openai_model="gpt-5.1")
+        ai = C.ai_status(cfg)
+        self.assertEqual(ai["model"], "opus")

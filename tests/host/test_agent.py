@@ -81,7 +81,7 @@ class AgentTest(unittest.TestCase):
             [("tool_call", {"id": "c1", "name": "write_note", "arguments": {"title": "x", "text": "y"}})],
             [("text", "Understood, I did not save it.")],
         ]
-        agent, prov, events = self.run_agent(turns, consent=lambda t, a: False)
+        agent, prov, events = self.run_agent(turns, consent=lambda t, a: False, cfg=S.Settings(name="Maya", trust_level=0))
         action = next(p for k, p in events if k == "action")
         self.assertFalse(action["ok"])
         self.assertIn("declined", prov.calls[1]["messages"][2]["content"])

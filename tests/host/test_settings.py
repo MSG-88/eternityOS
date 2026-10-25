@@ -44,7 +44,7 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(s.verbosity, "normal")
         self.assertEqual(s.voice, "off")
         self.assertEqual(s.unlock_methods, ["passphrase"])
-        self.assertEqual(s.trust_level, 1)
+        self.assertEqual(s.trust_level, 2)
         self.assertFalse(s.telemetry, "telemetry can never be switched on")
 
     def test_on_device_only_overrides_cloud_provider(self):

@@ -387,9 +387,11 @@ class ActionBroker:
         return [t.schema() for t in self.tools.values()]
 
     def needs_consent(self, tool: Tool) -> bool:
+        if self.cfg.trust_level >= 2:
+            return False  # the owner's default: act, log, keep it undoable; Settings can bring the cards back
         if tool.risk == RISK_READ:
             return self.cfg.trust_level < 1
-        return True   # changes and dangerous actions always ask
+        return True   # at levels 0 and 1 changes and dangerous actions ask
 
     def execute(self, name: str, args: dict) -> ActionResult:
         tool = self.tools.get(name)

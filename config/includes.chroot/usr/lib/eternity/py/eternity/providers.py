@@ -371,7 +371,10 @@ class AnthropicProvider(Provider):
         m.total_ms = int((time.monotonic() - t0) * 1000)
         if not m.tokens:
             m.tokens = max(1, chars // 4)
-        gen_ms = max(1, m.total_ms - (m.first_token_ms or 0))
+        # tok/s from our own clock: the result's duration_ms starts after Claude Code boots, so it can
+        # be shorter than first_token_ms and would make the rate absurd (33000 tok/s on the VM)
+        wall_ms = int((time.monotonic() - t0) * 1000)
+        gen_ms = max(500, wall_ms - (m.first_token_ms or 0))
         m.tokens_per_s = m.tokens / (gen_ms / 1000)
         yield ("done", m)
 
@@ -490,7 +493,8 @@ class ClaudeCodeProvider(Provider):
                         content = block.get("content")
                         if isinstance(content, list):
                             content = " ".join(str(c.get("text", "")) for c in content if isinstance(c, dict))
-                        summary = str(content or "").strip().splitlines()[0][:200] if content else "done"
+                        lines = str(content or "").strip().splitlines()
+                        summary = lines[0][:200] if lines else "done"
                         ok = not block.get("is_error", False)
                         yield ("action", {"name": call["name"], "args": call["args"], "ok": ok, "summary": summary,
                                           "undoable": ok and call["name"] in ("write_note", "set_volume", "set_setting")})
@@ -522,7 +526,10 @@ class ClaudeCodeProvider(Provider):
             m.total_ms = int((time.monotonic() - t0) * 1000)
         if not m.tokens:
             m.tokens = max(1, chars // 4)
-        gen_ms = max(1, m.total_ms - (m.first_token_ms or 0))
+        # tok/s from our own clock: the result's duration_ms starts after Claude Code boots, so it can
+        # be shorter than first_token_ms and would make the rate absurd (33000 tok/s on the VM)
+        wall_ms = int((time.monotonic() - t0) * 1000)
+        gen_ms = max(500, wall_ms - (m.first_token_ms or 0))
         m.tokens_per_s = m.tokens / (gen_ms / 1000)
         yield ("done", m)
 

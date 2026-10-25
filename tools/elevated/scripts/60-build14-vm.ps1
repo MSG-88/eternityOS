@@ -33,7 +33,7 @@ Start-VM -Name $VMName
 $script:t0 = Get-Date
 "started $t0"
 Start-Process -FilePath "$env:windir\System32\vmconnect.exe" -ArgumentList 'localhost', $VMName
-At 7;  Key 0x28; Key 0x28; Key 0x28; Shot 'b14-grub'; Key 0x0D     # 4th entry: Eternity shell
+At 7;  Shot 'b14-grub'; Key 0x0D                                      # 1st entry = the Eternity shell since build 15
 At 18; Shot 'b14-splash'
 At 30; Shot 'b14-splash2'
 At 60; Shot 'b14-login'

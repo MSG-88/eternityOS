@@ -50,7 +50,7 @@ class Settings:
     telemetry: bool = False              # there is no telemetry; kept false and shown as such
     voice: str = "off"                   # off | calm | bright (no TTS engine is bundled yet)
     unlock_methods: List[str] = field(default_factory=lambda: ["passphrase"])
-    trust_level: int = 0                 # 0: confirm every action, 1: auto-run safe actions
+    trust_level: int = 2                 # 0: confirm every action, 1: auto-run read-only ones, 2: act without asking (logged, undoable)
     first_run_done: bool = False
     agent_mode: bool = True              # the assistant may propose actions (tools)
     hotkey: str = "<Super>space"
@@ -67,7 +67,7 @@ class Settings:
         if self.voice not in VOICES:
             self.voice = "off"
         self.unlock_methods = [m for m in self.unlock_methods if m in UNLOCK_METHODS] or ["passphrase"]
-        self.trust_level = max(0, min(1, int(self.trust_level)))
+        self.trust_level = max(0, min(2, int(self.trust_level)))
         self.telemetry = False
         if self.on_device_only and self.provider != "local":
             # "Keep everything on this device" wins over a cloud provider choice.

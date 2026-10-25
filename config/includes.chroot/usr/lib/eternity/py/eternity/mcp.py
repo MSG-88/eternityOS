@@ -144,7 +144,7 @@ class Server:
             return {"behavior": "deny", "message": "Eternity never escalates privileges; ask the user to run this themselves."}
         tool = A.builtin_tool(name, inp)
         if not self.broker.needs_consent(tool):
-            self.broker.audit.write(tool=name, args=inp, decision="auto (read-only, trusted)", ok=True, summary=tool.description, via="claude-code")
+            self.broker.audit.write(tool=name, args=inp, decision="auto (trusted)" if self.cfg.trust_level >= 2 else "auto (read-only, trusted)", ok=True, summary=tool.description, via="claude-code")
             return {"behavior": "allow", "updatedInput": inp}
         ok = self.broker.consent(tool, inp)
         self.broker.audit.write(tool=name, args=inp, decision="approved" if ok else "declined", ok=ok, summary=tool.description, via="claude-code")

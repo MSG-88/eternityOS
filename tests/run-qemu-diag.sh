@@ -32,7 +32,7 @@ Q() { python3 "$HERE/qmp.py" "$SOCK" "$@"; }
 
 t0=$(date +%s)
 grub_settle
-Q keys Down Down Down Enter                      # "Eternity 08 Live (Eternity shell)"
+Q keys Enter                                     # "Eternity 08 Live" = the Eternity shell since build 15
 S 38; Q screendump "$OUT/d-login.png"
 echo "INFO greeter at t=$(( $(date +%s) - t0 ))s"
 if [ -z "${DIAG_SKIP_GREETER:-}" ]; then

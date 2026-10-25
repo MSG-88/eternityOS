@@ -104,9 +104,10 @@ class SettingsWindow(Gtk.Window):
         self.trust = Gtk.ComboBoxText()
         self.trust.append("0", "Confirm everything")
         self.trust.append("1", "Read-only lookups run without asking")
+        self.trust.append("2", "Just do it (everything logged and undoable)")
         self.trust.set_active_id(str(cfg.trust_level))
         self.trust.connect("changed", lambda w: self.set_and_save("trust_level", int(w.get_active_id() or 0)))
-        root.pack_start(Row("Trust level", "Changes and sensitive actions always ask.", self.trust), False, False, 0)
+        root.pack_start(Row("Trust level", "How much Eternity may do before asking.", self.trust), False, False, 0)
 
         # --- presence
         root.pack_start(self.section("PRESENCE"), False, False, 6)

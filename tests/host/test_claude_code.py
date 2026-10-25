@@ -92,6 +92,29 @@ class TestProvider(unittest.TestCase):
         self.assertIn("--resume", args); self.assertEqual(args[args.index("--resume") + 1], "sess-1")
         self.assertNotIn("--allowedTools", args)
 
+    def test_whitespace_tool_result_does_not_crash(self):
+        # 2026-10-26 on the installed VM: a run_command with empty output made the daemon raise
+        # IndexError (splitlines()[0] on "\n"); the answer became "IndexError: list index out of range"
+        events = [dict(e) for e in EVENTS]
+        events[3] = {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_1", "content": "\n"}]}}
+        fake_claude(self.bin, events)
+        prov = P.ClaudeCodeProvider("sonnet", cfg=S.Settings(trust_level=1), binary=self.bin, mcp_command="/x/eternity-mcp")
+        out = list(prov.stream([{"role": "user", "content": "q"}]))
+        action = [p for k, p in out if k == "action"][0]
+        self.assertEqual(action["summary"], "done")
+        self.assertEqual(out[-1][0], "done")
+
+    def test_tokens_per_second_uses_the_wall_clock(self):
+        # the result's duration_ms (5 ms here) is shorter than our own first-token time, which made
+        # gen_ms 1 and the readout ~33000 tok/s on the installed VM
+        events = [dict(e) for e in EVENTS]
+        events[-1] = dict(events[-1], duration_ms=5)
+        fake_claude(self.bin, events)
+        prov = P.ClaudeCodeProvider("sonnet", cfg=S.Settings(trust_level=1), binary=self.bin, mcp_command="/x/eternity-mcp")
+        m = list(prov.stream([{"role": "user", "content": "q"}]))[-1][1]
+        self.assertEqual(m.total_ms, 5)
+        self.assertLess(m.tokens_per_s, 1000, m.tokens_per_s)
+
     def test_not_signed_in(self):
         fake_claude(self.bin, [], rc=1, stderr="Not logged in. Please run /login")
         prov = P.ClaudeCodeProvider("sonnet", cfg=S.Settings(), binary=self.bin)

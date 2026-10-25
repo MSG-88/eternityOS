@@ -30,6 +30,19 @@ class ActionsTest(unittest.TestCase):
             return answer
         return A.ActionBroker(consent, cfg=S.Settings(trust_level=trust), audit=A.Audit())
 
+    def test_trust_two_runs_everything_without_asking(self):
+        # Owner's default (2026-10-26): actions run without a consent card; everything is logged and undoable.
+        b = self.broker(answer=False, trust=2)
+        res = b.execute("write_note", {"title": "Trusted", "text": "no card"})
+        self.assertTrue(res.ok, res.summary)
+        self.assertEqual(self.asked, [])
+        self.assertEqual(b.undoable().tool.name, "write_note")
+
+    def test_trust_defaults_to_two_and_clamps(self):
+        self.assertEqual(S.Settings().trust_level, 2)
+        cfg = S.Settings(trust_level=9); cfg.validate(); self.assertEqual(cfg.trust_level, 2)
+        cfg = S.Settings(trust_level=-1); cfg.validate(); self.assertEqual(cfg.trust_level, 0)
+
     def test_change_requires_consent_and_is_logged_and_undoable(self):
         b = self.broker(answer=True)
         res = b.execute("write_note", {"title": "Design review", "text": "moved to tomorrow"})

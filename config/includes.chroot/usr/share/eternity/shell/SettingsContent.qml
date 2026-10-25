@@ -99,7 +99,7 @@ Item {
                             width: aLbl.implicitWidth + 20 * root.k; height: 26 * root.k; radius: 6 * root.k; color: on ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12) : "transparent"; border.width: 1; border.color: on ? Theme.accent : Theme.n700
                             Text { id: aLbl; anchors.centerIn: parent; text: modelData; color: on ? Theme.accent300 : Theme.n400; font.family: Theme.body; font.pixelSize: 12 * root.k }
                             MouseArea { anchors.fill: parent; enabled: root.online; onClicked: { const cur = (root.settings.claude_code_allow || []).slice(); const i = cur.indexOf(modelData); if (i >= 0) cur.splice(i, 1); else cur.push(modelData); root.setSetting("claude_code_allow", cur); } } } } } }
-            SettingsRow { k: root.k; label: "Trust"; hint: "Set in the setup assistant; read-only lookups run unasked at level 1."; Text { text: "level " + (root.settings.trust_level || 0); color: Theme.n400; font.family: Theme.body; font.pixelSize: 13 * root.k } }
+            SettingsRow { k: root.k; label: "Before acting"; hint: "Everything is logged and undoable either way."; Seg { k: root.k; options: [{ id: "0", label: "Ask always" }, { id: "1", label: "Ask for changes" }, { id: "2", label: "Just do it" }]; value: String(root.settings.trust_level === undefined ? 2 : root.settings.trust_level); enabled: root.online; onChosen: id => root.setSetting("trust_level", parseInt(id)) } }
         }
     }
     Component {

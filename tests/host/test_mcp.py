@@ -204,7 +204,10 @@ class TestConsentViaDaemon(Base):
 
 class TestCommandLine(unittest.TestCase):
     def test_tools_listing_and_policy_mode(self):
-        env = dict(os.environ, ETERNITY_CONSENT="deny", PYTHONPATH=PYROOT)
+        # the default trust level now acts without asking; this test pins the asking policy explicitly
+        home = tempfile.mkdtemp()
+        env = dict(os.environ, ETERNITY_CONSENT="deny", PYTHONPATH=PYROOT, HOME=home, XDG_CONFIG_HOME=os.path.join(home, ".config"), XDG_STATE_HOME=os.path.join(home, ".local", "state"))
+        os.environ["XDG_CONFIG_HOME"] = env["XDG_CONFIG_HOME"]; S.save(S.Settings(trust_level=0))
         r = subprocess.run([sys.executable, "-c", "from eternity import mcp; import sys; sys.exit(mcp.main(['--tools']))"],
                            capture_output=True, text=True, env=env, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)

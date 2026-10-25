@@ -53,7 +53,7 @@ INBUF_CAP_BYTES = 1024 * 1024
 THEME_SETTABLE = {("layout", "", "scale"), ("layout", "", "external_scale"), ("layout", "", "gaps"), ("layout", "", "border"), ("layout", "", "rounding"),
                   ("layout", "", "strip_height"), ("theme", "color", "*"), ("theme", "motion", "*"), ("theme", "radius", "*")}
 SETTABLE = ("verbosity", "proactive", "voice", "name", "provider", "on_device_only", "claude_code_model", "claude_code_allow",
-            "local_model", "hotkey", "agent_mode", "anthropic_model", "openai_model", "dnd")
+            "local_model", "hotkey", "agent_mode", "anthropic_model", "openai_model", "dnd", "trust_level")
 
 
 class DaemonError(Exception):

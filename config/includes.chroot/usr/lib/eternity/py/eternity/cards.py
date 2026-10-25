@@ -146,7 +146,7 @@ def ai_status(cfg: Optional[S.Settings] = None) -> Dict[str, object]:
         mp = lp.model_path()
         out["model"] = os.path.basename(os.path.realpath(mp)).replace(".gguf", "") if os.path.exists(mp) else "no model"
     else:
-        out["model"] = cfg.anthropic_model if prov == "anthropic" else cfg.openai_model
+        out["model"] = {"anthropic": cfg.anthropic_model, "openai": cfg.openai_model, "claude_code": cfg.claude_code_model}.get(prov, "")
     try:
         with open(metrics_path(), encoding="utf-8") as f:
             m = json.load(f)

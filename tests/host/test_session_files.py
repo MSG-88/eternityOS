@@ -72,10 +72,16 @@ class TestSessionFiles(unittest.TestCase):
 
     def test_grub_entry_for_the_session(self):
         g = read("config/bootloaders/grub-pc/grub.cfg")
-        self.assertIn('menuentry "Eternity 08 Live (Eternity shell)"', g)
-        self.assertIn("eternity.session=eternity", g)
-        # the entry comes after the self-test entry so the runners' Down-key counts stay valid
-        self.assertLess(g.index("Self-test"), g.index("Eternity shell"))
+        # build 15: the Eternity shell is the first entry; XFCE is "Classic desktop"
+        self.assertIn('menuentry "Eternity 08 Live" --hotkey=l {' + chr(10) + '    linux @KERNEL_LIVE@ @APPEND_LIVE@ eternity.session=eternity', g)
+        self.assertIn('menuentry "Eternity 08 Live (Classic desktop)"', g)
+        self.assertNotIn('(Eternity shell)"', g)
+
+    def test_eternity_is_the_default_session_everywhere(self):
+        self.assertIn("user-session=eternity", read("config/includes.chroot/etc/lightdm/lightdm.conf.d/10-eternity.conf"))
+        dm = read("config/includes.chroot/etc/calamares/modules/displaymanager.conf")
+        self.assertIn('executable: "eternity-session"', dm)
+        self.assertIn('desktopFile: "eternity"', dm)
 
     def test_visual_runner_has_session_mode(self):
         r = read("tests/run-qemu-visual.sh")
@@ -155,7 +161,7 @@ class TestSessionFiles(unittest.TestCase):
             self.assertIn(needle, r)
         g = read("config/bootloaders/grub-pc/grub.cfg")
         self.assertIn("eternity.session=eternity eternity.greeter=greetd", g)
-        self.assertLess(g.index("Eternity shell)"), g.index("eternity.greeter=greetd"))
+        self.assertLess(g.index('"Eternity 08 Live" --hotkey=l'), g.index("eternity.greeter=greetd"))
         c = read("tools/dev/chain-build14.sh")
         for needle in ("build14-run.log", "BUILD14 DONE", "--session eternity-greetd", "run-qemu-smoke.sh"):
             self.assertIn(needle, c)

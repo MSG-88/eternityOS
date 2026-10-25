@@ -78,7 +78,7 @@ class Base(unittest.TestCase):
         os.environ["XDG_RUNTIME_DIR"] = self.tmp.name
         self.sock_path = os.path.join(self.tmp.name, "d.sock")
         self.prov = ScriptedProvider(list(self.turns))
-        self.cfg = S.Settings(name="Maya")
+        self.cfg = S.Settings(name="Maya", trust_level=0)   # these tests exercise the consent cards
         self.d = D.Daemon(provider_factory=lambda cfg: self.prov, sock_path=self.sock_path, cfg=self.cfg, tick_s=0)
         self.t = threading.Thread(target=self.d.serve_forever, daemon=True)
         self.t.start()
@@ -234,7 +234,7 @@ class TestReviewFixes(Base):
         self.assertFalse(next(e["data"] for e in events if e["event"] == "ask.action")["ok"])
 
     def test_unlock_methods_and_trust_are_not_settable_over_the_socket(self):
-        for key, value in (("unlock_methods", ["passphrase"]), ("trust_level", 1)):
+        for key, value in (("unlock_methods", ["passphrase"]),):   # trust_level is the owner's choice in Settings since 2026-10-26
             with self.assertRaises(D.DaemonError):
                 self.c.call("settings.set", key=key, value=value)
 
