@@ -25,7 +25,8 @@ SOCK=/tmp/eternity-install.sock
 PIDF=$OUT/qemu.pid
 . "$HERE/qemu-env.sh"
 mkdir -p "$OUT"
-Q() { python3 "$HERE/qmp.py" "$SOCK" "$@"; }
+QFAIL=0
+Q() { python3 "$HERE/qmp.py" "$SOCK" "$@" || QFAIL=1; }
 
 launch() { # launch [extra qemu args...]; detached, pid in $PIDF
     rm -f "$SOCK"
@@ -117,6 +118,7 @@ boot-disk)
     Q keys "clear; eternity-chat --small --ask 'Reply with the single word PONG.'" Enter
     S 60; Q screendump "$OUT/installed-chat.png"
     echo "installed-system screenshots in $OUT (user $U)"
+    [ "$QFAIL" = 0 ] || { echo "boot-disk: the VM stopped answering (no installed system?)"; exit 1; }
     ;;
 boot-fallback)
     # Boot the installed disk with FRESH firmware variables: no "Eternity_08" NVRAM entry, so
