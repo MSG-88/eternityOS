@@ -111,6 +111,8 @@ def _hypr(cfg: dict) -> str:
         action = (keys.get("action") or {}).get(name)
         if action:
             binds.append(f"bindr = {combo}, exec, {action}")
+    for name, combo in (keys.get("global") or {}).items():
+        binds.append(f"bind = {combo}, global, quickshell:{name.replace('_', '-')}")
     for name, combo in (keys.get("dispatch") or {}).items():
         binds.append(f"bind = {combo}, {name.replace('__', ' ').replace('_', ' ', 0)}")
     for i in range(1, 10):
@@ -170,6 +172,91 @@ def _css(cfg: dict) -> str:
     out += ["@define-color theme_bg_color @bg;", "@define-color theme_fg_color @text;",
             "@define-color theme_selected_bg_color @accent;", "@define-color theme_selected_fg_color @bg;", ""]
     return "\n".join(out)
+
+
+def presets() -> List[dict]:
+    """The shipped appearance presets (presets.toml): [{id, name, description, theme: {...}, layout: {...}}]."""
+    errors: List[str] = []
+    data = _read_toml(os.path.join(SHARE, "presets.toml"), errors)
+    out = []
+    for p in data.get("preset") or []:
+        out.append({"id": str(p.get("id", "")), "name": str(p.get("name", "")), "description": str(p.get("description", "")),
+                    "theme": p.get("theme") or {}, "layout": p.get("layout") or {}})
+    return out
+
+
+def _toml_value(v) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return repr(v) if isinstance(v, float) else str(v)
+    if isinstance(v, list):
+        return "[" + ", ".join(_toml_value(x) for x in v) + "]"
+    return '"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
+def write_user(file: str, data: dict, user_dir: Optional[str] = None) -> str:
+    """Write ~/.config/eternity/<file>.toml from a {key: value} / {section: {key: value}} dict."""
+    if file not in FILES:
+        raise ValueError(f"unknown file {file}")
+    user_dir = user_dir or _user_dir()
+    os.makedirs(user_dir, exist_ok=True)
+    lines = ["# written by Eternity (Settings); edit freely, eternity-theme render applies it", ""]
+    for k, v in data.items():
+        if not isinstance(v, dict):
+            lines.append(f"{k} = {_toml_value(v)}")
+    for k, v in data.items():
+        if isinstance(v, dict):
+            lines += ["", f"[{k}]"] + [f"{kk} = {_toml_value(vv)}" for kk, vv in v.items()]
+    path = os.path.join(user_dir, FILES[file])
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    os.replace(tmp, path)
+    return path
+
+
+def user_overlay(file: str, user_dir: Optional[str] = None) -> dict:
+    errors: List[str] = []
+    return _read_toml(os.path.join(user_dir or _user_dir(), FILES[file]), errors)
+
+
+def set_value(file: str, key: str, value, section: Optional[str] = None, user_dir: Optional[str] = None) -> dict:
+    """Change one key in the user's overlay, validate the merged result, render; returns the merged cfg.
+    Raises ValueError (and leaves the files untouched) when the result would be invalid."""
+    overlay = user_overlay(file, user_dir)
+    if section:
+        overlay.setdefault(section, {})
+        if not isinstance(overlay[section], dict):
+            overlay[section] = {}
+        overlay[section][key] = value
+    else:
+        overlay[key] = value
+    cfg = load(user_dir)
+    cfg[file] = _merge(cfg[file], overlay)
+    errors = validate(cfg)
+    if errors:
+        raise ValueError("; ".join(errors))
+    write_user(file, overlay, user_dir)
+    render(None if user_dir is None else os.path.join(user_dir, "generated"), load(user_dir))
+    return load(user_dir)
+
+
+def apply_preset(preset_id: str, user_dir: Optional[str] = None) -> dict:
+    p = next((x for x in presets() if x["id"] == preset_id), None)
+    if p is None:
+        raise ValueError(f"unknown preset {preset_id}")
+    keep_layout = {k: v for k, v in user_overlay("layout", user_dir).items() if k not in ("gaps", "border", "rounding")}
+    cfg = load(user_dir)
+    cfg["theme"] = _merge(cfg["theme"], p["theme"])
+    cfg["layout"] = _merge(cfg["layout"], {**keep_layout, **p["layout"]})
+    errors = validate(cfg)
+    if errors:
+        raise ValueError("; ".join(errors))
+    write_user("theme", p["theme"], user_dir)
+    write_user("layout", {**keep_layout, **p["layout"]}, user_dir)
+    render(None if user_dir is None else os.path.join(user_dir, "generated"), load(user_dir))
+    return load(user_dir)
 
 
 def render(out_dir: Optional[str] = None, cfg: Optional[dict] = None) -> List[str]:

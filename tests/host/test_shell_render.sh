@@ -119,6 +119,64 @@ render 1536 864 consent-closed && check consent-closed 'd["consent_id"] == "" an
 render 1536 864 consent-dismiss && check consent-dismiss 'd["answered"] == ["c1:false"] and d["consent_id"] == ""' "Esc/outside click declines the pending consent explicitly"
 render 1920 1080 rescale && check rescale 'near(k, 0.8, 0.001) and near(it["strip"][3], 44*0.8, 1)' "scale change at runtime re-lays out (1920x1080 -> 1536x864: k 0.8)"
 render 1536 864 screens && check screens 'd["panel_edp"] is True and d["panel_hdmi"] is False and d["panel_only_hdmi"] is True' "the presence lives on the laptop panel (or the only screen)"
+# slice 2: the greeter scene (no personal data before login; accounts + session chooser)
+render 1536 864 greeter && {
+    check greeter 'd["users"] == ["maya", "eternity"] and d["sessions"] == ["Eternity", "Eternity Classic"]' "accounts and sessions listed"
+    check greeter 'd["since_visible"] is False and d["pin_chip_visible"] is False and it["field_placeholder"][4] == "Passphrase"' "no since-line, no PIN, passphrase field"
+    check greeter 'near(it["mark"][0] + it["mark"][2]/2, 960*k, 1) and it["greeting"][4] == "Good evening."' "mark centred, greeting without a name"
+    check greeter 'd["selected_user"] == "maya" and d["selected_session"] == "eternity"' "first account and the Eternity session selected"
+}
+render 1536 864 greeter-fail && check greeter-fail 'd["failures"] == 1 and d["shake"] is True and d["locked"] is True' "a wrong passphrase shakes and stays"
+[ -f "$OUT/greeter/greeter.png" ] && ok "greeter.png written" || bad "greeter.png missing"
+# slice 2: launcher ring (12 tiles on the 1.35r x r ellipse, r 350 when settled), filter, window ring
+render 1536 864 launcher && {
+    check launcher 'd["tile_count"] == 12 and all(near(it["tile" + str(i)][2], 64*k, 1) for i in range(12))' "12 tiles of 64k"
+    check launcher 'near(it["tile0"][0] + 32*k, 960*k, 2) and near(it["tile0"][1] + 32*k, (540 - 350)*k, 2)' "tile 0 at the top of the ring (angle -90, r 350)"
+    check launcher 'near(it["tile3"][0] + 32*k, (960 + 350*1.35)*k, 2) and near(it["tile3"][1] + 32*k, 540*k, 2)' "tile 3 at the right (angle 0)"
+    check launcher 'it["filter"][4].startswith("Type to filter") and near(it["filter"][1], 100*k, 2)' "filter line at y 100k"
+    check launcher 'it["tile0"][4] == "Files" and d["selected"] == "Files"' "first tile Files, selected"
+}
+render 1536 864 launcher-filter && check launcher-filter 'd["tile_count"] == 1 and it["tile0"][4] == "Files" and d["selected"] == "Files" and d["query"] == "fil"' "typing fil leaves Files selected"
+render 1536 864 launcher-nomatch && check launcher-nomatch 'd["tile_count"] == 0 and it["filter"][4].find("No match") >= 0 and d["launched"] == []' "no match: nothing to launch"
+render 1536 864 launcher-page && check launcher-page 'd["tile_count"] == 4 and d["page"] == 1 and d["pages"] == 2 and it["tile0"][4] == "App13"' "16 apps: page 2 shows the rest"
+render 1536 864 windowring && check windowring 'd["tile_count"] == 3 and it["tile0"][4] == "Terminal" and d["selected"] == "Terminal"' "window ring lists toplevels"
+[ -f "$OUT/launcher/launcher.png" ] && ok "launcher.png written" || bad "launcher.png missing"
+# slice 2: notification cards under the strip (300k wide, top-right), a storm holds the rest, the OSD
+render 1536 864 notify && {
+    check notify 'd["cards_visible"] == 1 and near(it["card0"][2], 300*k, 1) and near(it["card0"][0] + it["card0"][2], 1536 - 28*k, 2) and near(it["card0"][1], 44*k + 12*k, 2)' "one card 300k at top-right under the strip"
+    check notify 'it["card0"][4] == "Mail" and d["held"] == 0' "card shows the app as kicker; nothing held"
+}
+render 1536 864 notify-storm && check notify-storm 'd["cards_visible"] == 3 and d["held"] == 47 and d["queued"] == 47' "50 notifications: three cards, 47 held"
+render 1536 864 notify-dnd-release && check notify-dnd-release 'd["cards_visible"] == 2 and d["held"] == 0' "turning DND off shows what was held"
+render 1536 864 notify-expire && check notify-expire 'd["cards_visible"] == 1 and it["card0"][4] == "Critical"' "a normal card expires after its timeout; a critical one stays"
+render 1536 864 notify-dnd && check notify-dnd 'd["cards_visible"] == 0 and d["held"] == 2' "do not disturb: nothing shown, two held"
+render 1536 864 osd && check osd 'near(it["osd"][2], 240*k, 1) and near(it["osd"][1], 900*k, 2) and near(it["osd_fill"][2], 240*k*0.65, 2) and it["osd_label"][4] == "Volume 65%"' "OSD bar 240k at y 900k, 65 % fill"
+[ -f "$OUT/notify-storm/notify-storm.png" ] && ok "notify-storm.png written" || bad "notify-storm.png missing"
+# slice 2: Settings window (nav + the design's 700-wide column at x 1000 / y 200 inside a 1920 reference)
+render 1536 864 settings-eternity && {
+    check settings-eternity 'it["kicker"][4] == "SETTINGS \u00b7 ETERNITY" and it["title"][4] == "How she shows up" and near(it["column"][2], 700*k, 2)' "kicker, title, 700k column"
+    check settings-eternity 'd["rows"] >= 5 and near(it["row0"][3], it["row1"][3], 2) and near(it["slider"][2], 240*k, 1)' "rows of equal height; verbosity slider 240k"
+    check settings-eternity 'd["pages"] == ["Eternity", "Assistant", "Devices", "Network", "Sound", "Power", "Appearance", "Keys"] and d["page"] == "Eternity"' "eight pages, Eternity first"
+    check settings-eternity 'd["telemetry_enabled"] is False and d["telemetry_on"] is False' "telemetry switch off and disabled"
+}
+render 1100 720 settings-window && check settings-window 'it["column"][0] + it["column"][2] <= 1100 and it["column"][0] >= 400 and it["row0"][2] <= 700*k + 1' "the real window size keeps the column inside the window"
+render 1536 864 settings-offline && check settings-offline 'd["controls_enabled"] is False and it["offline"][4].find("not running") >= 0' "daemon down: controls disabled with a line"
+render 1536 864 settings-appearance && check settings-appearance 'd["page"] == "Appearance" and d["presets"] == ["Nocturne", "Nocturne Light", "Mono", "High contrast", "Quiet"] and d["scales"] == [1, 1.25, 1.5]' "appearance: presets and scales"
+render 1536 864 settings-assistant && check settings-assistant 'd["page"] == "Assistant" and d["providers"] >= 3 and d["allow_tools"] >= 8' "assistant: providers and allow-list"
+[ -f "$OUT/settings-eternity/settings-eternity.png" ] && ok "settings-eternity.png written" || bad "settings-eternity.png missing"
+# slice 2: Monitor (four 400-wide panels, 400x70 sparklines, the 300 ring at 960,560, the status line at y 880)
+render 1536 864 monitor && {
+    check monitor 'near(it["panel0"][0], 180*k, 1) and near(it["panel0"][1], 220*k, 1) and near(it["panel0"][2], 400*k, 1)' "panel 0 at (180k, 220k) 400k wide"
+    check monitor 'near(it["panel1"][0], 1340*k, 1) and near(it["panel3"][1], 680*k, 1)' "panel 1 at x 1340k, panel 3 at y 680k"
+    check monitor 'near(it["spark0"][2], 400*k, 1) and near(it["spark0"][3], 70*k, 1)' "sparkline 400k x 70k"
+    check monitor 'near(it["ring"][0] + it["ring"][2]/2, 960*k, 1) and near(it["ring"][1] + it["ring"][3]/2, 560*k, 1) and near(it["ring"][2], 600*k, 2)' "ring r 300 at (960k, 560k)"
+    check monitor 'near(it["status"][1], 880*k, 2) and it["status"][4].find("CPU LOAD") >= 0 and it["status"][4].find("DROPPED FRAMES") >= 0' "status line at y 880k"
+    check monitor 'd["labels"] == ["CPU", "AI", "Memory", "Input latency"] and it["value0"][4] == "18%" and it["value2"][4] == "5.2 GB" and it["value3"][4] == "6 ms"' "panel labels and values from the metrics"
+    check monitor 'it["value1"][4] == "170 tok/s"' "AI panel shows tok/s"
+}
+render 1536 864 monitor-bare && check monitor-bare 'it["value1"][4] == "idle" and it["value3"][4] == "\u2014" and d["labels"][1] == "AI" and d["npu"] is False and it["status"][4].find("0 DROPPED") < 0 and it["status"][4].find("DROPPED FRAMES") >= 0 and it["status"][4].find("1 HZ") >= 0 and it["status"][4].find(" \u2014 ") >= 0' "no AI run, no latency, no frame data: idle and dashes, never a zero"
+render 1536 864 monitor-npu && check monitor-npu 'd["labels"][1] == "NPU" and d["npu"] is True' "an accel device turns the AI panel into NPU"
+[ -f "$OUT/monitor/monitor.png" ] && ok "monitor.png written" || bad "monitor.png missing"
 render 1536 864 latency && check latency 'd["lat_count"] == 20 and near(d["lat_p95"], 19, 1) and d["lat_file"].endswith("/eternity/latency.json")' "latency samples: p95 of 20 samples"
 
 if [ $fail = 0 ]; then echo "SHELL RENDER: PASS"; else echo "SHELL RENDER: FAIL (artifacts in $OUT)"; exit 1; fi

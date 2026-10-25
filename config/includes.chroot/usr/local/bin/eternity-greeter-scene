@@ -1,0 +1,4 @@
+#!/bin/sh
+# The greeter scene inside cage: the Quickshell greeter config (accounts from users.json).
+export QT_QPA_PLATFORM=wayland
+exec quickshell -p /usr/share/eternity/greeter/shell.qml

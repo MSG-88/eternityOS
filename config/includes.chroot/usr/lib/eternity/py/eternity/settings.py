@@ -54,6 +54,7 @@ class Settings:
     first_run_done: bool = False
     agent_mode: bool = True              # the assistant may propose actions (tools)
     hotkey: str = "<Super>space"
+    dnd: bool = False                    # do not disturb: notifications are held (Focus card), not shown
 
     def validate(self) -> "Settings":
         if self.provider not in PROVIDERS:

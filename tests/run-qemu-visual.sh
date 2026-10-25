@@ -9,6 +9,7 @@
 set -uo pipefail
 ISO=${1:-}; MODE=${2:-shots}; SESSION=${3:-}
 [ "$MODE" = --session ] && { SESSION=${3:-eternity}; MODE=session; }
+[ "$SESSION" = eternity-greetd ] && GREETD=1 || GREETD=0
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=$HERE/out
 MEM=${ETERNITY_QEMU_MEM:-4096}
@@ -47,12 +48,18 @@ if [ "$MODE" = "--selftest" ]; then
     exit $?
 fi
 if [ "$MODE" = session ]; then
-    # fourth entry: "Eternity 08 Live (Eternity shell)" (eternity.session=eternity -> lightdm user-session)
-    Q keys Down Down Down Enter
+    # fourth entry: "Eternity 08 Live (Eternity shell)" (eternity.session=eternity -> lightdm user-session);
+    # fifth: the same with the Eternity greeter (eternity.greeter=greetd): --session eternity-greetd
+    if [ "$GREETD" = 1 ]; then Q keys Down Down Down Down Enter; else Q keys Down Down Down Enter; fi
     S 8;  Q screendump "$OUT/e-splash.png"
     S 30; Q screendump "$OUT/e-login.png"
     echo "INFO e-login screenshot at t=$(( $(date +%s) - t0 ))s"
-    Q keys eternity Enter
+    if [ "$GREETD" = 1 ]; then
+        cp "$OUT/e-login.png" "$OUT/e-greeter.png"          # the Eternity greeter scene (accounts, passphrase, sessions)
+        Q keys eternity Enter                                # the first account is preselected; passphrase then Enter
+    else
+        Q keys eternity Enter
+    fi
     S 25; Q screendump "$OUT/e-desktop.png"          # presence + strip (+ first-run wizard on a fresh user)
     Q keys Esc; S 3; Q screendump "$OUT/e-desktop2.png"
     Q keys Super-Space; S 3; Q screendump "$OUT/e-ask.png"
@@ -60,12 +67,16 @@ if [ "$MODE" = session ]; then
     Q keys Esc; S 2
     Q keys Super-L; S 4; Q screendump "$OUT/e-lock.png"
     Q keys eternity Enter; S 5; Q screendump "$OUT/e-unlocked.png"
+    Q keys Super; S 4; Q screendump "$OUT/e-launcher.png"; Q keys Esc; S 2
+    Q keys Super-Comma; S 6; Q screendump "$OUT/e-settings.png"; Q keys Super-Q; S 2
+    Q keys Super-M; S 6; Q screendump "$OUT/e-monitor.png"; Q keys Super-Q; S 2
     Q keys Super-Enter; S 6
+    Q keys "notify-send 'Eternity' 'Hello from the visual run'" Enter; S 4; Q screendump "$OUT/e-notify.png"
     Q keys "hyprctl layers | grep -E 'namespace|Layer' | head -12; hyprctl monitors | grep -E 'scale|Monitor'; ps -o rss,comm -C quickshell,eternity-daemon,Hyprland" Enter
     S 3; Q screendump "$OUT/e-terminal.png"
     Q keys "clear; tail -5 ~/.local/state/eternity/ui.log ~/.local/state/eternity/mcp.log 2>/dev/null; journalctl --user -b --no-pager -p warning 2>/dev/null | tail -8" Enter
     S 3; Q screendump "$OUT/e-logs.png"
-    echo "screenshots in $OUT: e-splash.png e-login.png e-desktop.png e-ask.png e-answer.png e-lock.png e-unlocked.png e-terminal.png e-logs.png"
+    echo "screenshots in $OUT: e-splash.png e-login.png e-greeter.png e-desktop.png e-ask.png e-answer.png e-lock.png e-unlocked.png e-launcher.png e-settings.png e-monitor.png e-notify.png e-terminal.png e-logs.png"
     exit 0
 fi
 Q keys Enter                      # boot "Eternity 08 Live"

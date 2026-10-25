@@ -2,11 +2,13 @@
 # live-config component: choose the greeter's default session from the kernel command line.
 #   eternity.session=eternity   -> the Eternity Wayland session (Hyprland + shell)
 #   eternity.session=xfce       -> Eternity Classic (XFCE), the default while the new session is proven
+#   eternity.greeter=greetd     -> the Eternity greeter (greetd + cage) instead of lightdm; anything else keeps lightdm
 # Writes /etc/lightdm/lightdm.conf.d/20-session.conf; the user can still pick the other session in the greeter.
 
 . /usr/lib/live/config.sh
 
 ETERNITY_SESSION=""
+ETERNITY_GREETER=""
 
 Cmdline ()
 {
@@ -15,6 +17,9 @@ Cmdline ()
 		case "${_PARAMETER}" in
 			eternity.session=*)
 				ETERNITY_SESSION="${_PARAMETER#eternity.session=}"
+				;;
+			eternity.greeter=*)
+				ETERNITY_GREETER="${_PARAMETER#eternity.greeter=}"
 				;;
 		esac
 	done
@@ -38,6 +43,17 @@ Config ()
 user-session=%s
 ' "${ETERNITY_SESSION}" > /etc/lightdm/lightdm.conf.d/20-session.conf
 	fi
+
+	case "${ETERNITY_GREETER}" in
+		greetd)
+			# lightdm's start job is already queued for this boot: mask it for this boot, then start greetd
+			systemctl mask --runtime lightdm.service >/dev/null 2>&1 || true
+			systemctl daemon-reload >/dev/null 2>&1 || true
+			systemctl disable lightdm >/dev/null 2>&1 || true
+			systemctl enable greetd >/dev/null 2>&1 || true
+			systemctl --no-block start greetd.service >/dev/null 2>&1 || true
+			;;
+	esac
 
 	touch /var/lib/live/config/eternity-session
 }

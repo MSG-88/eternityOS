@@ -16,6 +16,7 @@ Item {
     property bool locked: true
     property bool busy: false
     property int submits: 0
+    property bool greeter: false            // before login: no personal data, no PIN
     property var authFn: null                    // function(password, mode, cb)
     signal unlocked()
     readonly property string greetingText: (info.greeting || "Good evening") + (info.name ? ", " + info.name : "") + "."
@@ -30,13 +31,14 @@ Item {
     }
     Text {
         id: since
+        visible: !root.greeter
         text: root.sinceText; color: Theme.n500; font.family: Theme.body; font.pixelSize: 16 * root.k
         anchors.horizontalCenter: parent.horizontalCenter; y: greeting.y + greeting.height + 14 * root.k
     }
     Rectangle {
         id: fieldBox
         width: 360 * root.k; height: 44 * root.k; radius: Theme.radiusMd * root.k
-        anchors.horizontalCenter: parent.horizontalCenter; y: since.y + since.height + 28 * root.k
+        anchors.horizontalCenter: parent.horizontalCenter; y: (root.greeter ? greeting.y + greeting.height : since.y + since.height) + 28 * root.k
         color: Theme.surface; border.width: 1; border.color: root.backoffMs > 0 ? Theme.n700 : (field.activeFocus ? Theme.accent : Theme.n800)
         TextInput {
             id: field
@@ -63,7 +65,8 @@ Item {
         y: root.height - 88 * root.k - height
         spacing: 10 * root.k
         Repeater {
-            model: root.info.pin_available ? ["Passphrase", "PIN"] : ["Passphrase"]
+            id: chipRep
+            model: (root.info.pin_available && !root.greeter) ? ["Passphrase", "PIN"] : ["Passphrase"]
             Rectangle {
                 required property string modelData
                 readonly property bool on: (modelData === "PIN") === (root.mode === "pin")
@@ -102,5 +105,6 @@ Item {
                  field_placeholder: [fieldPlaceholder.x, fieldPlaceholder.y, fieldPlaceholder.width, fieldPlaceholder.height, fieldPlaceholder.text],
                  chips: [chips.x, chips.y, chips.width, chips.height, ""], other: [other.x, other.y, other.width, other.height, other.text] };
     }
-    function flags() { return { locked: root.locked, backoff_ms: root.backoffMs, failures: root.failures, shake: root.shake, mode: root.mode, submits: root.submits }; }
+    function flags() { return { locked: root.locked, backoff_ms: root.backoffMs, failures: root.failures, shake: root.shake, mode: root.mode, submits: root.submits,
+                                since_visible: since.visible, pin_chip_visible: chipRep.count > 1 }; }
 }

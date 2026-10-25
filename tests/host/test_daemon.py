@@ -295,6 +295,167 @@ class TestReviewFixes(Base):
         self.assertEqual(r["verbosity"], "normal")
 
 
+class TestLauncher(Base):
+    """Slice 2 Task 2: the launcher index over the socket, the show event and launching."""
+
+    def desktop(self, name, exec_cmd):
+        d = os.path.join(self.tmp.name, ".local", "share", "applications")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, name.lower() + ".desktop"), "w") as f:
+            f.write(f"[Desktop Entry]\nType=Application\nName={name}\nExec={exec_cmd}\nIcon=utilities-terminal\n")
+
+    def test_index_filter_and_show(self):
+        os.environ["XDG_DATA_HOME"] = os.path.join(self.tmp.name, ".local", "share")
+        self.desktop("Terminal", "true")
+        self.desktop("Files", "true")
+        rows = self.c.call("launcher.index", query="term")["apps"]
+        self.assertTrue(any(r["name"] == "Terminal" for r in rows))
+        self.assertTrue(all({"name", "exec", "icon", "id"} <= set(r) for r in rows))
+        self.assertFalse(any(r["name"] == "Files" for r in rows))
+        sub = Subscriber(self.sock_path)
+        self.c.call("launcher.show")
+        sub.wait("launcher.show")
+
+    def test_launch_by_id(self):
+        os.environ["XDG_DATA_HOME"] = os.path.join(self.tmp.name, ".local", "share")
+        marker = os.path.join(self.tmp.name, "launched")
+        self.desktop("Marker", f"touch {marker}")
+        row = next(r for r in self.c.call("launcher.index", query="marker")["apps"])
+        self.assertTrue(self.c.call("launcher.launch", id=row["id"])["ok"])
+        for _ in range(50):
+            if os.path.exists(marker):
+                break
+            time.sleep(0.1)
+        self.assertTrue(os.path.exists(marker))
+        with self.assertRaises(D.DaemonError):
+            self.c.call("launcher.launch", id="no-such-app")
+
+
+class TestNotifications(Base):
+    """Slice 2 Task 3: the notification store behind the Focus card and the lock screen's since-count."""
+
+    def test_store_seen_and_since(self):
+        for i in range(3):
+            r = self.c.call("notifications.store", app="Mail", summary=f"msg {i}", body="hello", urgency="normal")
+            self.assertIn("id", r)
+        self.assertEqual(self.c.call("session.lock_info")["since_count"], 3)
+        recent = self.c.call("notifications.recent", limit=10)["notifications"]
+        self.assertEqual(len(recent), 3)
+        self.assertEqual(recent[0]["summary"], "msg 2")          # newest first
+        self.assertFalse(recent[0]["seen"])
+        self.c.call("notifications.seen")
+        self.assertEqual(self.c.call("session.lock_info")["since_count"], 0)
+        self.assertTrue(all(n["seen"] for n in self.c.call("notifications.recent", limit=10)["notifications"]))
+
+    def test_dnd_setting_and_focus_card(self):
+        self.c.call("settings.set", key="dnd", value=True)
+        self.assertTrue(self.c.call("settings.get")["dnd"])
+        self.c.call("notifications.store", app="Mail", summary="held", body="", urgency="normal")
+        cards = {c["id"]: c for c in self.c.call("cards.get")["cards"]}
+        self.assertIn("focus", cards)
+        self.assertIn("held", cards["focus"]["body"].lower())
+        self.assertIn("1", cards["focus"]["body"])
+        self.c.call("settings.set", key="dnd", value=False)
+        cards = {c["id"]: c for c in self.c.call("cards.get")["cards"]}
+        self.assertNotIn("focus", cards)                           # no DND, nothing held: no Focus card
+
+    def test_store_keeps_last_500_lines(self):
+        for i in range(520):
+            self.c.call("notifications.store", app="A", summary=str(i), body="", urgency="low")
+        recent = self.c.call("notifications.recent", limit=1000)["notifications"]
+        self.assertLessEqual(len(recent), 500)
+        self.assertEqual(recent[0]["summary"], "519")
+
+
+class TestThemeOverSocket(Base):
+    """Slice 2 Task 4: Settings pages write the user's theme/layout files through the daemon."""
+
+    def test_theme_get_and_set(self):
+        os.environ["ETERNITY_SHARE"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "config", "includes.chroot", "usr", "share", "eternity")
+        from eternity import theme
+        theme.SHARE = os.environ["ETERNITY_SHARE"]
+        t = self.c.call("theme.get")
+        self.assertEqual(t["theme"]["color"]["accent"], "#9184d9")
+        self.assertEqual(t["layout"]["scale"], 1.25)
+        sub = Subscriber(self.sock_path)
+        r = self.c.call("theme.set", file="layout", key="scale", value=1.5)
+        self.assertEqual(r["layout"]["scale"], 1.5)
+        with open(os.path.join(self.tmp.name, ".config", "eternity", "layout.toml"), encoding="utf-8") as f:
+            self.assertIn("scale = 1.5", f.read())
+        self.assertIn("monitor=eDP-1,preferred,auto,1.5", open(os.path.join(self.tmp.name, ".config", "eternity", "generated", "hyprland.conf")).read())
+        sub.wait("theme.changed")
+        r = self.c.call("theme.set", file="theme", section="motion", key="reduced", value=True)
+        self.assertTrue(r["theme"]["motion"]["reduced"])
+        with self.assertRaises(D.DaemonError):
+            self.c.call("theme.set", file="layout", key="scale", value=9)        # invalid: refused, file untouched
+        self.assertEqual(self.c.call("theme.get")["layout"]["scale"], 1.5)
+        with self.assertRaises(D.DaemonError):
+            self.c.call("theme.set", file="nope", key="x", value=1)
+
+    def test_presets(self):
+        os.environ["ETERNITY_SHARE"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "config", "includes.chroot", "usr", "share", "eternity")
+        from eternity import theme
+        theme.SHARE = os.environ["ETERNITY_SHARE"]
+        names = [p["id"] for p in self.c.call("theme.presets")["presets"]]
+        for n in ("nocturne", "nocturne-light", "mono", "high-contrast", "quiet"):
+            self.assertIn(n, names)
+        r = self.c.call("theme.apply_preset", id="quiet")
+        self.assertTrue(r["theme"]["motion"]["reduced"])
+        r = self.c.call("theme.apply_preset", id="nocturne")
+        self.assertFalse(r["theme"]["motion"]["reduced"])
+        self.assertEqual(r["theme"]["color"]["accent"], "#9184d9")
+
+
+class TestMonitor(Base):
+    """Slice 2 Task 5: metrics history (60 samples) and the process list behind the Monitor page."""
+
+    def test_history_and_processes(self):
+        for _ in range(3):
+            self.d.m_metrics({})
+        h = self.c.call("metrics.history")
+        self.assertTrue({"cpu", "mem_gb", "ai_tps", "latency_ms"} <= set(h["series"]))
+        self.assertGreaterEqual(len(h["series"]["cpu"]), 3)
+        self.assertLessEqual(len(h["series"]["cpu"]), 60)
+        self.assertIn("accel", h)                                  # NPU present? (never faked)
+        self.assertFalse(h["accel"])
+        procs = self.c.call("metrics.processes", limit=5)["processes"]
+        self.assertLessEqual(len(procs), 5)
+        self.assertTrue(all({"pid", "comm", "rss_mb"} <= set(p) for p in procs))
+        self.assertTrue(all(procs[i]["rss_mb"] >= procs[i + 1]["rss_mb"] for i in range(len(procs) - 1)))
+        sub = Subscriber(self.sock_path)
+        self.c.call("monitor.show")
+        sub.wait("monitor.show")
+
+
+class TestSlice2Review(Base):
+    """Slice 2 review fixes: unlock marks notifications seen (I4), provider switch in one call (I7),
+    theme.set allow-list (I8)."""
+
+    def test_unlock_marks_seen(self):
+        self.c.call("notifications.store", app="A", summary="x", body="", urgency="normal")
+        self.assertEqual(self.c.call("session.lock_info")["since_count"], 1)
+        self.c.call("session.unlocked")
+        self.assertEqual(self.c.call("session.lock_info")["since_count"], 0)
+
+    def test_provider_switch_in_one_call(self):
+        self.c.call("settings.set", key="on_device_only", value=True)
+        r = self.c.call("settings.set", key="provider", value="anthropic")
+        self.assertEqual(r["provider"], "anthropic")
+        self.assertFalse(self.c.call("settings.get")["on_device_only"])
+        self.assertEqual(self.c.call("settings.get")["provider"], "anthropic")
+
+    def test_theme_set_allow_list(self):
+        os.environ["ETERNITY_SHARE"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "config", "includes.chroot", "usr", "share", "eternity")
+        from eternity import theme
+        theme.SHARE = os.environ["ETERNITY_SHARE"]
+        for kw in (dict(file="keys", section="action", key="lock", value="true"), dict(file="layout", key="exec_once", value=["x"]),
+                   dict(file="layout", key="blur_namespaces", value=[]), dict(file="theme", section="font", key="body", value="x")):
+            with self.assertRaises(D.DaemonError):
+                self.c.call("theme.set", **kw)
+        self.assertEqual(self.c.call("theme.set", file="layout", key="gaps", value=8)["layout"]["gaps"], 8)
+        self.assertEqual(self.c.call("theme.set", file="theme", section="color", key="accent", value="#2ec4b6")["theme"]["color"]["accent"], "#2ec4b6")
+
+
 class TestSecurity(unittest.TestCase):
     def test_rejects_other_uid(self):
         tmp = tempfile.mkdtemp()

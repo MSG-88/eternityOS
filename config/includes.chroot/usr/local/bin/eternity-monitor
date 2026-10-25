@@ -1,3 +1,8 @@
 #!/bin/sh
-# Eternity 08 monitor window (GTK). See /usr/lib/eternity/py/eternity/ui/monitor.py
+# System monitor. In the Eternity session (daemon socket present) the shell's Monitor opens;
+# otherwise the GTK monitor window (XFCE).
+SOCK="${ETERNITY_SOCK:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/eternity/daemon.sock}"
+if [ -S "$SOCK" ] && [ "$1" != "--gtk" ]; then
+    exec /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity import daemon; daemon.Client().call("monitor.show")'
+fi
 exec /usr/bin/python3 -c 'import sys; sys.path.insert(0, "/usr/lib/eternity/py"); from eternity.ui import monitor as m; sys.exit(m.main())' "$@"

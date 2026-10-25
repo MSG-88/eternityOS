@@ -13,6 +13,12 @@ ShellRoot {
     readonly property real k: Geometry.k(w, h)
     readonly property bool presence: scenario.indexOf("presence") === 0
     readonly property bool lockScene: scenario.indexOf("lock") === 0
+    readonly property bool greeterScene: scenario.indexOf("greeter") === 0
+    readonly property bool monitorScene: scenario.indexOf("monitor") === 0
+    readonly property bool settingsScene: scenario.indexOf("settings") === 0
+    readonly property bool notifyScene: scenario.indexOf("notify") === 0 || scenario === "osd"
+    readonly property bool ringScene: scenario.indexOf("launcher") === 0 || scenario === "windowring"
+    readonly property var designApps: ["Files", "Mail", "Calendar", "Notes", "Music", "Photos", "Terminal", "Browser", "Messages", "Code", "Monitor", "Settings"].map(n => ({ id: n.toLowerCase(), name: n, exec: n.toLowerCase(), icon: "" }))
     readonly property bool plainScene: scenario === "screens" || scenario === "latency"
     readonly property bool barScene: scenario.indexOf("bar") === 0 || scenario.indexOf("answer") === 0 || scenario.indexOf("consent") === 0
     readonly property var designCards: [
@@ -35,7 +41,72 @@ ShellRoot {
                 active: root.presence
                 sourceComponent: PresenceContent { k: root.k; cards: root.designCards; animated: false; windowState: root.scenario === "presence-windows" ? "windows" : "empty" }
             }
-            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene }
+            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene && !root.greeterScene && !root.ringScene && !root.notifyScene && !root.settingsScene && !root.monitorScene }
+            Loader {
+                id: monitorLoader
+                anchors.fill: parent
+                active: root.monitorScene
+                sourceComponent: MonitorContent {
+                    k: root.k
+                    accel: root.scenario === "monitor-npu"
+                    metrics: root.scenario === "monitor-bare" ? ({ cpu: 18, mem_gb: 5.2, ai_tps: null, latency_ms: null, dropped_frames: null }) : ({ cpu: 18, mem_gb: 5.2, ai_tps: 170, latency_ms: 6, dropped_frames: 0 })
+                    history: ({ series: { cpu: [12, 18, 25, 18, 20, 18], ai_tps: [null, 150, 170, 170, 165, 170], mem_gb: [5.0, 5.1, 5.2, 5.2, 5.2, 5.2], latency_ms: [8, 6, 7, 6, 5, 6] } })
+                }
+            }
+            Loader {
+                id: settingsLoader
+                anchors.fill: parent
+                active: root.settingsScene
+                sourceComponent: SettingsContent {
+                    k: root.k
+                    online: root.scenario !== "settings-offline"
+                    settings: ({ voice: "calm", verbosity: "normal", proactive: true, on_device_only: true, provider: "local", claude_code_model: "sonnet", claude_code_allow: ["Read"], unlock_methods: ["passphrase", "pin"], trust_level: 0 })
+                    themeCfg: ({ theme: { motion: { reduced: false, glow: 1.0 } }, layout: { scale: 1.25 }, keys: { bind: { ask: "SUPER, space", lock: "SUPER, L" } } })
+                }
+                onLoaded: { if (root.scenario === "settings-appearance") item.page = "Appearance"; if (root.scenario === "settings-assistant") item.page = "Assistant"; }
+            }
+            Loader {
+                id: notifyLoader
+                anchors.fill: parent
+                active: root.notifyScene
+                sourceComponent: Item {
+                    property alias stackItem: ns
+                    property alias osdItem: osd
+                    NotifyStack { id: ns; k: root.k; screenWidth: root.w }
+                    Osd { id: osd; k: root.k; x: root.w / 2 - width / 2; y: 900 * root.k - 28 * root.k }
+                }
+                onLoaded: {
+                    Notifications.visible = []; Notifications.queued = []; Notifications.held = 0; Notifications.dnd = false;
+                    if (root.scenario === "notify") Notifications.push({ app: "Mail", summary: "3 new, 1 needs you", body: "Ola: shell spec v3 is ready for a read" });
+                    if (root.scenario === "notify-storm") for (let i = 0; i < 50; i++) Notifications.push({ app: "App" + i, summary: "message " + i, body: "" });
+                    if (root.scenario === "notify-dnd") { Notifications.dnd = true; Notifications.push({ app: "A", summary: "1", body: "" }); Notifications.push({ app: "B", summary: "2", body: "" }); }
+                    if (root.scenario === "notify-dnd-release") { Notifications.dnd = true; Notifications.push({ app: "A", summary: "1", body: "" }); Notifications.push({ app: "B", summary: "2", body: "" }); Notifications.dnd = false; }
+                    if (root.scenario === "notify-expire") { Notifications.push({ app: "Soon", summary: "gone", body: "", timeout: 150 }); Notifications.push({ app: "Critical", summary: "stays", body: "", urgency: "critical" }); }
+                    if (root.scenario === "osd") item.osdItem.show("Volume", 0.65, "Volume 65%");
+                }
+            }
+            Loader {
+                id: ringLoader
+                anchors.fill: parent
+                active: root.ringScene
+                sourceComponent: root.scenario === "windowring"
+                    ? windowRingComp : launcherComp
+                onLoaded: {
+                    const r = item;
+                    if (root.scenario === "launcher-filter") r.query = "fil";
+                    if (root.scenario === "launcher-nomatch") { r.query = "zzz"; r.submit(); }
+                    if (root.scenario === "launcher-page") { r.apps = Array.from({ length: 16 }, (_, i) => ({ id: "app" + (i + 1), name: "App" + (i + 1), exec: "true", icon: "" })); r.nextPage(); }
+                }
+            }
+            Component { id: launcherComp; LauncherContent { k: root.k; animated: false; apps: root.designApps } }
+            Component { id: windowRingComp; WindowRingContent { k: root.k; animated: false; windows: [{ id: "0x1", title: "Terminal", app: "xfce4-terminal" }, { id: "0x2", title: "Browser", app: "firefox" }, { id: "0x3", title: "Files", app: "thunar" }] } }
+            Loader {
+                id: greeterLoader
+                anchors.fill: parent
+                active: root.greeterScene
+                sourceComponent: GreeterContent { k: root.k; users: ["maya", "eternity"]; authFn: (pw, mode, cb) => cb(false) }
+                onLoaded: { if (root.scenario === "greeter-fail") { item.setPassword("wrong"); item.submit(); } }
+            }
             Loader {
                 id: lockLoader
                 anchors.fill: parent
@@ -97,6 +168,11 @@ ShellRoot {
                 if (root.presence) { base.items = presenceLoader.item.geometry(); return base; }
                 if (root.barScene) { base.items = barLoader.item.geometry(); return Object.assign(base, barLoader.item.flags()); }
                 if (root.lockScene) { base.items = lockLoader.item.geometry(); return Object.assign(base, lockLoader.item.flags()); }
+                if (root.greeterScene) { base.items = greeterLoader.item.geometry(); return Object.assign(base, greeterLoader.item.flags()); }
+                if (root.ringScene) { base.items = ringLoader.item.geometry(); return Object.assign(base, ringLoader.item.flags()); }
+                if (root.monitorScene) { base.items = monitorLoader.item.geometry(); return Object.assign(base, monitorLoader.item.flags()); }
+                if (root.settingsScene) { base.items = settingsLoader.item.geometry(); return Object.assign(base, settingsLoader.item.flags()); }
+                if (root.notifyScene) { base.items = Object.assign(notifyLoader.item.stackItem.geometry(), notifyLoader.item.osdItem.geometry()); return Object.assign(base, notifyLoader.item.stackItem.flags()); }
                 base.items = strip.geometry(); return base;
             }
         }

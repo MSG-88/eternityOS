@@ -47,6 +47,7 @@ class TestRender(Base):
         self.assertIn("rounding = 8", hypr)
         self.assertIn("bind = SUPER, space, exec, eternity-ask --show", hypr)
         self.assertIn("bindr = SUPER, Super_L, exec, eternity-launcher", hypr)   # release of Super alone, not every Super press
+        self.assertIn("bind = SUPER, Tab, global, quickshell:window-ring", hypr)    # the window ring is a Quickshell global shortcut
         self.assertNotIn("code:133", hypr)
         self.assertIn("allow_session_lock_restore = true", hypr)
         self.assertIn("exec-once = eternity-supervise eternity-daemon", hypr)
@@ -110,6 +111,23 @@ class TestRender(Base):
                            env=env, capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue(os.path.exists(os.path.join(self.home, ".config", "eternity", "generated", "hyprland.conf")))
+
+
+class TestPresets(unittest.TestCase):
+    def test_shipped_presets_validate(self):
+        presets = theme.presets()
+        ids = [p["id"] for p in presets]
+        for n in ("nocturne", "nocturne-light", "mono", "high-contrast", "quiet"):
+            self.assertIn(n, ids)
+        for p in presets:
+            cfg = theme.load()
+            cfg["theme"] = theme._merge(cfg["theme"], p.get("theme", {}))
+            cfg["layout"] = theme._merge(cfg["layout"], p.get("layout", {}))
+            self.assertEqual(theme.validate(cfg), [], p["id"])
+        light = next(p for p in presets if p["id"] == "nocturne-light")
+        self.assertNotEqual(light["theme"]["color"]["bg"], "#161826")
+        quiet = next(p for p in presets if p["id"] == "quiet")
+        self.assertTrue(quiet["theme"]["motion"]["reduced"])
 
 
 class TestDefaultsFiles(unittest.TestCase):

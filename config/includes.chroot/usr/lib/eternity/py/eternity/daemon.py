@@ -24,6 +24,7 @@ a lock or a consent is pending is told about it; settings are re-read from disk 
 process wrote them. Standard library only.
 """
 import collections
+import glob
 import datetime as _dt
 import json
 import os
@@ -48,8 +49,11 @@ INBUF_CAP_BYTES = 1024 * 1024
 # What a client may change over the socket. Credentials (unlock methods) and the trust level are
 # changed only through the Settings app, which writes the file: a process that can reach the
 # socket must not be able to lower the bar for its own actions.
+# What Settings may write through theme.set: appearance only; never commands, binds or the exec list
+THEME_SETTABLE = {("layout", "", "scale"), ("layout", "", "external_scale"), ("layout", "", "gaps"), ("layout", "", "border"), ("layout", "", "rounding"),
+                  ("layout", "", "strip_height"), ("theme", "color", "*"), ("theme", "motion", "*"), ("theme", "radius", "*")}
 SETTABLE = ("verbosity", "proactive", "voice", "name", "provider", "on_device_only", "claude_code_model", "claude_code_allow",
-            "local_model", "hotkey", "agent_mode", "anthropic_model", "openai_model")
+            "local_model", "hotkey", "agent_mode", "anthropic_model", "openai_model", "dnd")
 
 
 class DaemonError(Exception):
@@ -165,13 +169,16 @@ class Daemon:
         self.agent: Optional[G.Agent] = None
         self.locked = False
         self._lock_event = threading.Event()
+        self.history: Deque[dict] = collections.deque(maxlen=60)
         self.methods: Dict[str, Callable[[dict], object]] = {
             "ping": lambda p: {}, "subscribe": self.m_subscribe, "state.get": self.m_state, "cards.get": self.m_cards, "metrics.sample": self.m_metrics,
             "settings.get": self.m_settings_get, "settings.set": self.m_settings_set, "ask.start": self.m_ask_start,
             "ask.cancel": self.m_ask_cancel, "ask.undo": self.m_ask_undo, "ask.show": self.m_ask_show, "consent.reply": self.m_consent_reply,
             "consent.ask": self.m_consent_ask, "session.lock": self.m_lock, "session.locked": self.m_locked, "session.unlocked": self.m_unlocked,
             "session.lock_info": self.m_lock_info, "pin.verify": self.m_pin,
-            "hw.summary": self.m_hw, "launcher.index": self.m_launcher, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
+            "hw.summary": self.m_hw, "launcher.index": self.m_launcher, "launcher.show": self.m_launcher_show, "launcher.launch": self.m_launcher_launch,
+            "settings.show": self.m_settings_show, "metrics.history": self.m_metrics_history, "metrics.processes": self.m_processes, "monitor.show": self.m_monitor_show, "theme.get": self.m_theme_get, "theme.set": self.m_theme_set, "theme.presets": self.m_theme_presets, "theme.apply_preset": self.m_theme_preset,
+            "notifications.store": self.m_notif_store, "notifications.recent": self.m_notif_recent, "notifications.seen": self.m_notif_seen, "osd.show": self.m_osd, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
         }
         # methods answered on a worker thread because they block on the user or on slow probes
         self.slow_methods = {"consent.ask", "session.lock", "state.get", "cards.get", "metrics.sample", "hw.summary", "pin.verify",
@@ -427,6 +434,10 @@ class Daemon:
     def m_subscribe(self, params: dict) -> dict:
         return {}
 
+    def m_settings_show(self, params: dict) -> dict:
+        self.emit("settings.show", {})
+        return {}
+
     def m_settings_get(self, params: dict) -> dict:
         from dataclasses import asdict
         return asdict(self._fresh_cfg())
@@ -436,6 +447,10 @@ class Daemon:
         if key not in SETTABLE:
             raise DaemonError(f"setting '{key}' cannot be changed here")
         cfg = self._fresh_cfg()
+        if key == "provider" and value != "local":
+            cfg.on_device_only = False     # choosing a cloud assistant is the explicit opt-out (validate() would reset the provider otherwise)
+        if key == "dnd":
+            value = bool(value) if not isinstance(value, str) else value.lower() in ("1", "true", "yes", "on")
         setattr(cfg, key, value)
         cfg.validate()                     # coerces bad values back to safe ones, never raises
         S.save(cfg)
@@ -453,11 +468,12 @@ class Daemon:
         return {"clock": now.strftime("%H:%M"), "date": now.strftime("%A %d %B"), "battery": C.battery(), "network": C.network(),
                 "ai": C.ai_status(cfg), "memory": mem, "cpu": C.cpu_percent(), "latency_ms": (lat or {}).get("latency_ms"),
                 "live": C.live_session(), "user_name": cfg.name, "notifications_held": 0, "uptime": C.uptime_text(),
-                "provider": cfg.effective_provider(), "locked": self.locked}
+                "provider": cfg.effective_provider(), "locked": self.locked, "dnd": cfg.dnd,
+                "settings": __import__("dataclasses").asdict(cfg)}
 
     def m_cards(self, params: dict) -> dict:
         from . import theme
-        wanted = (theme.load().get("layout") or {}).get("cards") or ["today", "system", "eternity", "recent", "install"]
+        wanted = (theme.load().get("layout") or {}).get("cards") or ["today", "system", "eternity", "recent", "install", "focus", "nowplaying"]
         out = []
         for cid in wanted:
             card = self._card(cid)
@@ -492,7 +508,12 @@ class Daemon:
             if not C.live_session():
                 return None
             return {"id": cid, "kicker": "Live session", "title": "Install Eternity 08", "body": "Keep everything: install next to Windows or on the whole disk.", "meta": "eternity-install", "actions": ["install"]}
-        return None   # focus / nowplaying: slice 2 (notifications, MPRIS)
+        if cid == "focus":
+            if not cfg.dnd:
+                return None
+            held = self._since_count()
+            return {"id": cid, "kicker": "Focus", "title": "Do not disturb", "body": f"Notifications held \u00b7 {held} queued", "meta": "until you turn it off", "actions": ["dnd"]}
+        return None   # nowplaying: MPRIS lives in the shell (slice 2b)
 
     def m_metrics(self, params: dict) -> dict:
         lat = C.latency_sample() or {}
@@ -505,8 +526,38 @@ class Daemon:
         except (OSError, ValueError):
             pass
         mem = C.memory()
-        return {"cpu": C.cpu_percent(), "mem_gb": mem.get("used_gb"), "ai_tps": tps, "latency_ms": lat.get("latency_ms"),
-                "dropped_frames": lat.get("dropped_frames")}
+        sample = {"cpu": C.cpu_percent(), "mem_gb": mem.get("used_gb"), "ai_tps": tps, "latency_ms": lat.get("latency_ms"),
+                  "dropped_frames": lat.get("dropped_frames"), "ts": time.time()}
+        self.history.append(sample)
+        return sample
+
+    def m_metrics_history(self, params: dict) -> dict:
+        rows = list(self.history)
+        series = {k: [r.get(k) for r in rows] for k in ("cpu", "mem_gb", "ai_tps", "latency_ms", "dropped_frames")}
+        return {"series": series, "accel": bool(glob.glob("/sys/class/accel/accel*")), "samples": len(rows)}
+
+    def m_processes(self, params: dict) -> dict:
+        rows = []
+        for d in glob.glob("/proc/[0-9]*"):
+            try:
+                with open(os.path.join(d, "status"), encoding="utf-8", errors="replace") as f:
+                    name, rss = "", 0
+                    for line in f:
+                        if line.startswith("Name:"):
+                            name = line.split(":", 1)[1].strip()
+                        elif line.startswith("VmRSS:"):
+                            rss = int(line.split()[1])
+                            break
+                if rss:
+                    rows.append({"pid": int(os.path.basename(d)), "comm": name, "rss_mb": round(rss / 1024, 1)})
+            except (OSError, ValueError):
+                continue
+        rows.sort(key=lambda r: -r["rss_mb"])
+        return {"processes": rows[: int(params.get("limit", 12))]}
+
+    def m_monitor_show(self, params: dict) -> dict:
+        self.emit("monitor.show", {})
+        return {}
 
     # -- assistant ---------------------------------------------------------------------
     def _make_agent(self) -> G.Agent:
@@ -626,6 +677,7 @@ class Daemon:
 
     def m_unlocked(self, params: dict) -> dict:
         self.locked = False
+        self.m_notif_seen({})          # "n things since you left" counts from now on
         return {"locked": False}
 
     def m_lock_info(self, params: dict) -> dict:
@@ -633,13 +685,92 @@ class Daemon:
         return {"greeting": greeting_for_hour(_dt.datetime.now().hour), "name": cfg.name, "since_count": self._since_count(),
                 "pin_available": "pin" in cfg.unlock_methods and os.path.exists(os.path.join(S.config_dir(), "pin.json")), "locked": self.locked}
 
-    def _since_count(self) -> int:
-        path = os.path.join(S.state_dir(), "notifications.jsonl")
+    # -- notifications (store behind the Focus card and the lock screen's since-count) ------
+    NOTIF_KEEP = 500
+
+    def _notif_path(self) -> str:
+        return os.path.join(S.state_dir(), "notifications.jsonl")
+
+    def _notif_read(self) -> List[dict]:
         try:
-            with open(path, encoding="utf-8") as f:
-                return sum(1 for line in f if '"seen": false' in line)
+            with open(self._notif_path(), encoding="utf-8") as f:
+                rows = []
+                for line in f:
+                    try:
+                        rows.append(json.loads(line))
+                    except ValueError:
+                        pass
+                return rows
         except OSError:
-            return 0
+            return []
+
+    def _notif_write(self, rows: List[dict]) -> None:
+        S._atomic_write(self._notif_path(), "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows[-self.NOTIF_KEEP:]), 0o600)
+
+    def _since_count(self) -> int:
+        return sum(1 for r in self._notif_read() if not r.get("seen"))
+
+    def m_notif_store(self, params: dict) -> dict:
+        row = {"id": uuid.uuid4().hex[:12], "ts": _dt.datetime.now().isoformat(timespec="seconds"), "app": str(params.get("app", ""))[:80],
+               "summary": str(params.get("summary", ""))[:200], "body": str(params.get("body", ""))[:1000], "urgency": str(params.get("urgency", "normal")),
+               "seen": False, "held": bool(self._fresh_cfg().dnd)}
+        rows = self._notif_read()
+        rows.append(row)
+        if len(rows) > self.NOTIF_KEEP + 20:
+            self._notif_write(rows)
+        else:
+            os.makedirs(S.state_dir(), exist_ok=True)
+            with open(self._notif_path(), "a", encoding="utf-8") as f:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        return {"id": row["id"], "held": row["held"]}
+
+    def m_notif_recent(self, params: dict) -> dict:
+        rows = self._notif_read()[-self.NOTIF_KEEP:]
+        return {"notifications": list(reversed(rows))[: int(params.get("limit", 20))]}
+
+    def m_notif_seen(self, params: dict) -> dict:
+        rows = self._notif_read()
+        for r in rows:
+            r["seen"] = True
+        self._notif_write(rows)
+        return {"seen": len(rows)}
+
+    # -- appearance (Settings > Appearance writes the user's TOML files through theme.py) --------
+    def m_theme_get(self, params: dict) -> dict:
+        from . import theme
+        cfg = theme.load()
+        return {"theme": cfg["theme"], "layout": cfg["layout"], "keys": cfg["keys"], "errors": cfg["_errors"]}
+
+    def m_theme_set(self, params: dict) -> dict:
+        from . import theme
+        file, key, section = str(params.get("file", "")), str(params.get("key", "")), params.get("section")
+        if file not in theme.FILES or not key:
+            raise DaemonError("theme.set needs file (theme|layout|keys), key and value")
+        if (file, str(section or ""), key) not in THEME_SETTABLE and (file, str(section or ""), "*") not in THEME_SETTABLE:
+            raise DaemonError(f"{file}.{section + '.' if section else ''}{key} cannot be changed here (edit ~/.config/eternity/{file}.toml)")
+        try:
+            cfg = theme.set_value(file, key, params.get("value"), section=str(section) if section else None)
+        except ValueError as e:
+            raise DaemonError(str(e))
+        self.emit("theme.changed", {"file": file, "key": key})
+        return {"theme": cfg["theme"], "layout": cfg["layout"]}
+
+    def m_theme_presets(self, params: dict) -> dict:
+        from . import theme
+        return {"presets": [{k: v for k, v in p.items() if k in ("id", "name", "description")} for p in theme.presets()]}
+
+    def m_theme_preset(self, params: dict) -> dict:
+        from . import theme
+        try:
+            cfg = theme.apply_preset(str(params.get("id", "")))
+        except ValueError as e:
+            raise DaemonError(str(e))
+        self.emit("theme.changed", {"preset": params.get("id")})
+        return {"theme": cfg["theme"], "layout": cfg["layout"]}
+
+    def m_osd(self, params: dict) -> dict:
+        self.emit("osd", {"kind": str(params.get("kind", "volume")), "level": float(params.get("level", 0)), "label": str(params.get("label", ""))})
+        return {}
 
     def m_pin(self, params: dict) -> dict:
         from .ui.firstrun import verify_pin
@@ -654,9 +785,22 @@ class Daemon:
         from . import launcher_index as L
         q = str(params.get("query", "")).lower().strip()
         apps = L.load()
-        rows = [{"name": a.name, "exec": a.exec, "icon": getattr(a, "icon", ""), "id": getattr(a, "id", a.name)} for a in apps
-                if not q or q in a.name.lower()]
+        rows = [{"name": a.name, "exec": a.exec_cmd, "icon": a.icon, "id": a.desktop_id or a.name, "comment": a.comment}
+                for a in apps if not q or q in a.name.lower() or any(q in k.lower() for k in a.keywords)]
         return {"apps": rows[: int(params.get("limit", 60))]}
+
+    def m_launcher_show(self, params: dict) -> dict:
+        self.emit("launcher.show", {})
+        return {}
+
+    def m_launcher_launch(self, params: dict) -> dict:
+        from . import launcher_index as L
+        wanted = str(params.get("id", ""))
+        for a in L.load():
+            if wanted and wanted in (a.desktop_id, a.name):
+                L.launch(a)
+                return {"ok": True, "name": a.name}
+        raise DaemonError(f"no app {wanted!r}")
 
     def m_claude_sessions(self, params: dict) -> dict:
         return {"sessions": P.claude_code_sessions(int(params.get("limit", 20)))}

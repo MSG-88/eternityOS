@@ -21,3 +21,24 @@ Bar 1.0 Bar.qml
 PamAuth 1.0 PamAuth.qml
 LockContent 1.0 LockContent.qml
 Lock 1.0 Lock.qml
+GreeterContent 1.0 GreeterContent.qml
+RingContent 1.0 RingContent.qml
+LauncherContent 1.0 LauncherContent.qml
+WindowRingContent 1.0 WindowRingContent.qml
+Launcher 1.0 Launcher.qml
+singleton Rings 1.0 Rings.qml
+singleton Notifications 1.0 Notifications.qml
+NotifyCard 1.0 NotifyCard.qml
+NotifyStack 1.0 NotifyStack.qml
+Osd 1.0 Osd.qml
+Overlay 1.0 Overlay.qml
+SettingsRow 1.0 SettingsRow.qml
+singleton Controls 1.0 Controls.qml
+Toggle 1.0 Toggle.qml
+Seg 1.0 Seg.qml
+Slider 1.0 Slider.qml
+SettingsContent 1.0 SettingsContent.qml
+SettingsWindow 1.0 SettingsWindow.qml
+Spark 1.0 Spark.qml
+MonitorContent 1.0 MonitorContent.qml
+MonitorWindow 1.0 MonitorWindow.qml

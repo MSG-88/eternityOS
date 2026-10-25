@@ -3,6 +3,16 @@
 # and a build-log line with the versions that went into the image.
 set -e
 chmod 755 /usr/local/bin/eternity-session /usr/local/bin/eternity-lock /usr/local/bin/eternity-supervise /usr/lib/live/config/0032-eternity-session
+# The greeter runs from its own Quickshell config root: copy the shared scene files next to it
+for f in LockContent.qml GreeterContent.qml Theme.qml Geometry.qml Mobius.qml Wordmark.qml SystemClockFallback.qml PamAuth.qml Daemon.qml Latency.qml qmldir; do
+    cp -f /usr/share/eternity/shell/$f /usr/share/eternity/greeter/$f
+done
+mkdir -p /usr/share/eternity/greeter/assets && cp -f /usr/share/eternity/shell/assets/mobius-atlas.png /usr/share/eternity/greeter/assets/
+chmod 755 /usr/local/bin/eternity-greeter /usr/local/bin/eternity-greeter-scene /usr/local/bin/eternity-osd
+# The Eternity session owns org.freedesktop.Notifications through the shell: no D-Bus activation of
+# xfce4-notifyd there (XFCE Classic starts it from its own autostart entry instead)
+rm -f /usr/share/dbus-1/services/org.xfce.xfce4-notifyd.Notifications.service
+rm -f /usr/lib/systemd/user/xfce4-notifyd.service /usr/lib/systemd/user/dbus-org.freedesktop.Notifications.service
 # Claude Code's PreToolUse hook must be executable or every tool call runs unaudited (review C1)
 chmod 755 /usr/lib/eternity/claude-hook
 mkdir -p /etc/xdg/eternity /etc/xdg/quickshell
