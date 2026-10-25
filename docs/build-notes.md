@@ -605,3 +605,15 @@ Adding `fonts-dejavu-core` (build 12) could not help. Fix: the splash uses Inter
 `eternity-fonts` initramfs hook ships at its real-root path, and the theme hook creates the same
 `Plymouth*.ttf` links in the real root. Tests: `tests/host/test_splash_fonts.py`. Verified visually
 with the next build's `splash.png`.
+
+## Build 13 Eternity session: Hyprland crashed at EGL setup (fixed for build 14)
+
+The lightdm login into the Eternity session bounced back to the greeter. Diagnosis run
+(`tests/run-qemu-diag.sh`, screenshots `tests/out/build13/d-*.png`): `eternity.session=eternity` was
+applied (`20-session.conf`, lightdm log), Hyprland started and died with
+`libEGL warning: Not allowed to force software rendering when API explicitly selects a hardware device`
+followed by a crash report. `eternity-session` exported `LIBGL_ALWAYS_SOFTWARE=1` on the VM (no
+hardware GPU driver); Hyprland selects its DRM device explicitly and Mesa refuses the forced
+software path. Fix: the session no longer exports it (Mesa falls back to `kms_swrast` by itself;
+`AQ_NO_MODIFIERS=1` and `QT_QUICK_BACKEND=software` stay), and Hyprland's crash-report directory is
+created up front. Diagnosis 2 runs the amended script from a VT on the build 13 ISO.
