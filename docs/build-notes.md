@@ -617,3 +617,20 @@ hardware GPU driver); Hyprland selects its DRM device explicitly and Mesa refuse
 software path. Fix: the session no longer exports it (Mesa falls back to `kms_swrast` by itself;
 `AQ_NO_MODIFIERS=1` and `QT_QUICK_BACKEND=software` stay), and Hyprland's crash-report directory is
 created up front. Diagnosis 2 runs the amended script from a VT on the build 13 ISO.
+
+## Build 13 on Hyper-V (2026-10-25 evening): the Eternity session runs
+
+Testing moved to a native Hyper-V Gen 2 VM (`tools/elevated/`, Secure Boot with the Microsoft UEFI CA
+template, dynamic 2-6 GB, 4 vCPU): greeter in 60 s instead of 7 min. Results, screenshots in
+`docs/screenshots/hyperv-build13-*.png`:
+- XFCE Classic and the Eternity session both start; the session's login works (the daemon, the
+  presence, strip, ask bar, lock/unlock, terminal all up). `hyprctl` says scale 1.00 on the
+  virtual output (the 1.25 default applies to eDP-1 only), layers eternity-presence and
+  eternity-strip.
+- Found and fixed live on the VM (files pushed over the Default Switch, `hyprctl reload`,
+  shell restart), then committed (de8cd0b): Hyprland 0.55 config errors (gestures:workspace_swipe,
+  misc:vfr, dwindle:pseudotile removed; windowrulev2 and old layerrule syntax deprecated), the
+  "started without start-hyprland" notice, and the faint presence core (AnimatedSprite draws
+  nothing while running on the software scene graph; the Möbius mark now steps a clipped atlas).
+- Still from build 13 and expected: the splash boxes (fixed in 2b300c3) and the session crash on
+  the QEMU virtio GPU path (fixed in 18a866b); both verify with build 14.
