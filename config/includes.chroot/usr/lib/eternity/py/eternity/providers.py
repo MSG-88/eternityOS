@@ -210,6 +210,38 @@ class OpenAICompatible(Provider):
         yield ("done", m)
 
 
+def physical_cores(sysfs: str = "/sys/devices/system/cpu", logical: Optional[int] = None) -> int:
+    """Distinct physical cores (SMT siblings share a core_id); the logical count when unknown."""
+    logical = logical or os.cpu_count() or 4
+    ids = set()
+    try:
+        for d in os.listdir(sysfs):
+            if d.startswith("cpu") and d[3:].isdigit():
+                try:
+                    with open(os.path.join(sysfs, d, "topology", "core_id")) as f:
+                        ids.add((os.path.exists(os.path.join(sysfs, d, "topology", "physical_package_id")) and
+                                 open(os.path.join(sysfs, d, "topology", "physical_package_id")).read().strip(), f.read().strip()))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return max(1, min(logical, len(ids))) if ids else logical
+
+
+def llama_server_args(model: str, host: str, port: str, logical: Optional[int] = None, physical: Optional[int] = None,
+                      ctx: int = 4096) -> List[str]:
+    """Arguments for llama-server, tuned for a laptop CPU: generation threads = physical cores (SMT
+    siblings only slow the memory-bound decode), prompt batches on every logical thread, flash
+    attention on, the KV cache in q8_0 (half the memory, no measurable quality loss at 4k context),
+    the model's own chat template (--jinja)."""
+    logical = logical or os.cpu_count() or 4
+    physical = physical or physical_cores(logical=logical)
+    return ["-m", model, "--host", host, "--port", port, "-c", str(ctx),
+            "-t", str(physical), "--threads-batch", str(logical), "-b", "1024", "-ub", "512",
+            "-fa", "on", "--cache-type-k", "q8_0", "--cache-type-v", "q8_0",
+            "--jinja", "--log-disable"]
+
+
 class LocalProvider(OpenAICompatible):
     """The bundled llama.cpp server. Started on demand as a user service and kept warm."""
 
@@ -259,14 +291,12 @@ class LocalProvider(OpenAICompatible):
         server = shutil.which("llama-server")
         if not server:
             raise ProviderError("llama-server is not installed")
-        threads = os.cpu_count() or 4
         host, port = "127.0.0.1", "8080"
         try:
             port = self.base_url.split(":")[2].split("/")[0]
         except IndexError:
             pass
-        cmd = [server, "-m", model, "--host", host, "--port", port, "-c", "4096", "-t", str(threads),
-               "--jinja", "--log-disable"]
+        cmd = [server] + llama_server_args(model, host, port)
         if shutil.which("systemd-run") and os.environ.get("ETERNITY_NO_SYSTEMD_RUN") is None:
             cmd = ["systemd-run", "--user", "--quiet", "--collect", "--unit", "eternity-llama",
                    "--property", "MemoryMax=80%"] + cmd

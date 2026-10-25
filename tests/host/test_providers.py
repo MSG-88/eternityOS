@@ -2,6 +2,7 @@
 shape). Run: python3 -m unittest tests/host/test_providers.py"""
 import json
 import os
+import tempfile
 import sys
 import threading
 import unittest
@@ -91,6 +92,29 @@ class ProviderTest(unittest.TestCase):
             elif kind == "done":
                 metrics = payload
         return text, calls, metrics
+
+    def test_llama_server_args_use_physical_cores_flash_attention_and_a_small_kv_cache(self):
+        # 8 logical threads on 4 cores: generation on the 4 cores, prompt batches on all 8
+        args = P.llama_server_args("/m/default.gguf", "127.0.0.1", "8080", logical=8, physical=4)
+        self.assertEqual(args[:3], ["-m", "/m/default.gguf", "--host"])
+        self.assertIn(("-t", "4"), zip(args, args[1:]))
+        self.assertIn(("--threads-batch", "8"), zip(args, args[1:]))
+        self.assertIn(("-fa", "on"), zip(args, args[1:]))
+        self.assertIn(("--cache-type-k", "q8_0"), zip(args, args[1:]))
+        self.assertIn(("--cache-type-v", "q8_0"), zip(args, args[1:]))
+        self.assertIn(("-c", "4096"), zip(args, args[1:]))
+        self.assertIn("--jinja", args)
+        # no SMT: every core generates
+        args = P.llama_server_args("/m/default.gguf", "127.0.0.1", "8080", logical=24, physical=24)
+        self.assertIn(("-t", "24"), zip(args, args[1:]))
+
+    def test_physical_cores_counts_distinct_core_ids(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for cpu, core in ((0, 0), (1, 0), (2, 1), (3, 1)):
+                d = os.path.join(tmp, f"cpu{cpu}", "topology"); os.makedirs(d)
+                open(os.path.join(d, "core_id"), "w").write(str(core))
+            self.assertEqual(P.physical_cores(sysfs=tmp, logical=4), 2)
+        self.assertEqual(P.physical_cores(sysfs="/nonexistent", logical=6), 6)
 
     def test_local_streams_text_and_strips_thinking(self):
         p = P.LocalProvider("auto", base_url=self.url + "/v1")
