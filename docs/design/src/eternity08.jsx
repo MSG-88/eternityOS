@@ -1,5 +1,8 @@
 // Eternity 08 — animated OS walkthrough on the animations-v3 engine.
 // All choreography keyed to useComposition().T and CUES; one tree, always mounted.
+// (Live copy read from the Claude Design project through the design MCP on 2026-10-25; it is
+// newer than the downloaded bundle: HUD frames, view-change sweeps, decoding wordmark and
+// kickers, kernel-style boot log.)
 const { CompositionStage, useComposition, Shot, Captions, Easing, animate, interpolate, clamp,
   useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakSlider, TweakRadio } = window;
 
@@ -61,15 +64,53 @@ function Mobius({ T, size, draw, glow, ringColor, uid }) {
 }
 // Wordmark: Michroma (wide geometric tech face) with a three-bar E
 const TECH = "'Michroma', 'Inter', system-ui, sans-serif";
-function Wordmark({ size, color, tracking }) {
-  const ls = tracking == null ? 0.34 : tracking, cap = size * 0.72, stem = size * 0.1, ew = size * 0.74;
+const MONO = "ui-monospace, 'SF Mono', Menlo, monospace";
+const POOL = '0123456789ABCDEF<>/|';
+const scr = (t, i) => POOL[Math.floor(t * 28 + i * 7) % POOL.length];
+const scramble = (str, t, start, dur) => str.split('').map((ch, i) => { const p = clamp((t - start - i * 0.035) / (dur || 0.35), 0, 1); return p >= 1 || ch === ' ' || ch === '·' ? ch : p > 0 ? scr(t, i) : ' '; }).join('');
+function Wordmark({ T, at, size, color, tracking, glow }) {
+  const live = at != null, t = live ? T - at : 99;
+  const ls0 = tracking == null ? 0.34 : tracking, ls = live ? tw(t, 0, 1.8, ls0 + 0.42, ls0, MOTION.draw) : ls0;
+  const cap = size * 0.72, stem = size * 0.1, ew = size * 0.74, letters = 'TERNITY'.split('');
   return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', font: `400 ${size}px ${TECH}`, letterSpacing: `${ls}em`, color, lineHeight: 1, whiteSpace: 'nowrap' }}>
+    <div style={{ display: 'inline-flex', alignItems: 'center', font: `400 ${size}px ${TECH}`, letterSpacing: `${ls}em`, color, lineHeight: 1, whiteSpace: 'nowrap', filter: glow ? `drop-shadow(0 0 ${glow}px rgba(145,132,217,0.6))` : 'none' }}>
       <svg width={ew} height={cap} viewBox={`0 0 ${ew} ${cap}`} style={{ display: 'block', marginRight: size * ls, overflow: 'visible' }}>
-        {[stem / 2, cap / 2, cap - stem / 2].map((y, i) => <line key={i} x1="0" x2={ew} y1={y} y2={y} strokeWidth={stem} style={{ stroke: color }} />)}
-      </svg><span style={{ marginRight: `-${ls}em` }}>TERNITY</span>
+        {[stem / 2, cap / 2, cap - stem / 2].map((y, i) => <line key={i} x1="0" x2={ew * (live ? tw(t, 0.1 + i * 0.14, 0.55 + i * 0.14, 0, 1, MOTION.draw) : 1)} y1={y} y2={y} strokeWidth={stem} style={{ stroke: color }} />)}
+      </svg>
+      <span style={{ display: 'inline-flex' }}>{letters.map((ch, i) => {
+        const s0 = 0.5 + i * 0.16, p = live ? tw(t, s0, s0 + 0.5, 0, 1) : 1, settled = !live || t > s0 + 0.5;
+        return <span key={i} style={{ display: 'inline-block', opacity: Math.max(p, live && t > s0 - 0.3 ? 0.35 : 0), transform: `translateY(${(1 - p) * 10}px)`, color: settled ? color : TK.a300, marginRight: i === letters.length - 1 ? `-${ls}em` : 0 }}>{settled ? ch : scr(t, i)}</span>;
+      })}</span>
     </div>
   );
+}
+// HUD frame: corner brackets draw in, a scan beam sweeps, label decodes
+function HUD({ T, at, x, y, w, h, label, out, color }) {
+  const t = T - at; if (t < 0) return null;
+  const p = tw(t, 0, 0.8, 0, 1, MOTION.draw), o = Math.min(1, p * 3) * (out == null ? 1 : out), L = 22, c = color || TK.n500, scan = tw(t, 0.05, 0.95, 0, 1, MOTION.draw);
+  const corner = (cx, cy, sx, sy) => <path key={cx + '-' + cy} d={`M ${cx} ${cy + sy * L} L ${cx} ${cy} L ${cx + sx * L} ${cy}`} fill="none" pathLength="1" strokeDasharray={`${p} 1`} strokeWidth="1.5" style={{ stroke: c }} />;
+  return (
+    <div style={{ position: 'absolute', left: x, top: y, width: w, height: h, opacity: o, pointerEvents: 'none' }}>
+      <svg width={w} height={h} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+        {corner(0, 0, 1, 1)}{corner(w, 0, -1, 1)}{corner(0, h, 1, -1)}{corner(w, h, -1, -1)}
+        <line x1={L + 10} x2={L + 10 + (w - 2 * L - 20) * p} y1="0" y2="0" strokeWidth="1" style={{ stroke: c, opacity: 0.22 }} />
+        <line x1={w - L - 10} x2={w - L - 10 - (w - 2 * L - 20) * p} y1={h} y2={h} strokeWidth="1" style={{ stroke: c, opacity: 0.22 }} />
+      </svg>
+      <div style={{ position: 'absolute', left: 0, right: 0, top: `${scan * 100}%`, height: 1, background: fadeRule(TK.a300), boxShadow: `0 0 14px ${TK.accent}`, opacity: scan < 1 ? 0.9 * (1 - scan * 0.6) : 0 }} />
+      {label ? <div style={{ position: 'absolute', left: L + 10, top: -20, font: `400 10px ${TECH}`, letterSpacing: '0.24em', color: c, whiteSpace: 'pre' }}>{scramble(label, t, 0.15)}</div> : null}
+    </div>
+  );
+}
+// Full-screen scan + grid flash at every view change
+function Sweeps({ T, CUES }) {
+  return <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{ORDER.slice(1).map(n => {
+    const t = T - CUES[n]; if (t < 0 || t > 1) return null;
+    const y = 1080 * tw(t, 0, 0.8, 0, 1, MOTION.draw), g = tw(t, 0, 0.1, 0, 0.14) * tw(t, 0.1, 0.8, 1, 0);
+    return <div key={n}>
+      <div style={{ position: 'absolute', inset: 0, opacity: g, backgroundImage: `linear-gradient(${TK.n700} 1px, transparent 1px), linear-gradient(90deg, ${TK.n700} 1px, transparent 1px)`, backgroundSize: '96px 96px', backgroundPosition: '48px 48px' }} />
+      <div style={{ position: 'absolute', left: 0, right: 0, top: y, height: 1, background: fadeRule(TK.a300), boxShadow: `0 0 24px ${TK.accent}`, opacity: tw(t, 0.6, 0.9, 1, 0) }} />
+    </div>;
+  })}</div>;
 }
 
 // ——— The presence: concentric rings, ticks, glow ———
@@ -110,15 +151,25 @@ function Rule({ T, start, end, y, width }) {
 // ——— Section helpers (each renders all the time, gated by <Shot>) ———
 function Boot({ T, CUES }) {
   const t = T - CUES.Boot;
-  const log = ['eternity-kernel 8.0.2 — secure boot verified', 'neural runtime · 4 cores online', 'memory graph restored · 1.2 GB', 'sensors · camera, mic, presence', 'realtime scheduler · 240 Hz', 'ready'];
+  const log = [['0.000000', 'Linux version 6.12.4-eternity (gcc 14.2) #08 SMP PREEMPT_RT'], ['0.184', 'eternity-secureboot: image signature verified'], ['0.412', 'systemd[1]: Eternity 08 (presence shell) starting'], ['0.733', 'npu0: Eternity Neural Runtime 8.0 — 4 cores, 240 Hz realtime'], ['0.981', 'memgraph: personal graph restored (1.2 GB, encrypted at rest)'], ['1.226', 'sensors: camera0 mic0 presence0 online'], ['1.540', 'systemd[1]: Reached target eternity-presence.target'], ['1.812', 'eternity-session[412]: handing off to presence']];
+  const logO = tw(t, 3.0, 3.7, 1, 0), out = tw(t, 7.0, 7.8, 1, 0), wmIn = 3.2, scan = tw(t, 5.1, 5.9, -0.05, 1.05, MOTION.draw);
+  const shown = log.filter((_, i) => t > 0.25 + i * 0.3).length;
   return (
     <Shot from={CUES.Boot} to={CUES.Setup}>
-      <Rule T={T} start={0.2} end={1.3} y={500} width={1400} />
-      <div style={{ position: 'absolute', left: 64, bottom: 64, display: 'flex', flexDirection: 'column', gap: 6, font: `400 13px ${FONT}`, color: TK.n600, opacity: tw(T, 5.6, 6.6, 1, 0) }}>
-        {log.map((l, i) => <div key={i} style={{ opacity: tw(t, 0.9 + i * 0.55, 1.3 + i * 0.55, 0, 1), display: 'flex', gap: 10 }}><span style={{ color: TK.a700 }}>{String(i + 1).padStart(2, '0')}</span>{l}</div>)}
+      <div style={{ position: 'absolute', left: 56, top: 60, display: 'flex', flexDirection: 'column', gap: 5, font: `400 12px ${MONO}`, color: TK.n500, opacity: logO }}>
+        {log.map((l, i) => <div key={i} style={{ display: 'flex', gap: 12, opacity: t > 0.25 + i * 0.3 ? 1 : 0 }}><span style={{ color: TK.a700, width: 84, textAlign: 'right' }}>[{l[0].padStart(9)}]</span>{l[1]}</div>)}
+        <div style={{ width: 7, height: 13, background: TK.n500, opacity: Math.sin(t * 9) > 0 && shown < log.length ? 1 : 0, marginTop: 2 }} />
       </div>
-      <div style={{ position: 'absolute', left: 0, right: 0, top: 790, display: 'flex', justifyContent: 'center', opacity: tw(t, 3.4, 4.4, 0, 1) * tw(t, 6.0, 6.8, 1, 0), transform: `translateY(${tw(t, 3.4, 4.4, 10, 0)}px)` }}><Wordmark size={24} color={TK.text} /></div>
-      <div style={{ position: 'absolute', left: 0, right: 0, top: 830, textAlign: 'center', font: `400 11px ${TECH}`, letterSpacing: '0.3em', color: TK.n500, opacity: tw(t, 4.0, 4.8, 0, 1) * tw(t, 6.0, 6.8, 1, 0) }}>PERSONAL OS · 08</div>
+      <div style={{ position: 'absolute', left: 0, top: 1040, height: 1, width: 1920 * tw(t, 0.2, 2.9, 0, 1), background: TK.accent, opacity: 0.6 * logO }} />
+      <Rule T={T} start={0.2} end={1.3} y={500} width={1400} />
+      <HUD T={T} at={CUES.Boot + 5.0} x={620} y={750} w={680} h={130} out={out} />
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 784, display: 'flex', justifyContent: 'center', opacity: tw(t, wmIn, wmIn + 0.3, 0, 1) * out }}>
+        <div style={{ position: 'relative' }}>
+          <Wordmark T={T} at={CUES.Boot + wmIn} size={34} color={TK.text} glow={12 * tw(t, 5.1, 5.9, 0, 1) * (0.7 + 0.3 * Math.sin(t * 2.4))} />
+          <div style={{ position: 'absolute', top: -22, bottom: -22, left: `${scan * 100}%`, width: 2, background: TK.a200, boxShadow: `0 0 18px ${TK.a300}`, opacity: scan > 0 && scan < 1 ? 1 : 0 }} />
+        </div>
+      </div>
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 846, textAlign: 'center', font: `400 11px ${TECH}`, letterSpacing: '0.3em', color: TK.n500, whiteSpace: 'pre', opacity: tw(t, 5.5, 5.8, 0, 1) * out }}>{scramble('PERSONAL OS · 08 · LINUX 6.12 RT', t, 5.5)}</div>
     </Shot>
   );
 }
@@ -139,9 +190,10 @@ function Setup({ T, CUES }) {
   const row = (at) => ({ opacity: tw(t, at, at + 0.7, 0, 1) * out, transform: `translateY(${tw(t, at, at + 0.7, 14, 0)}px)` });
   return (
     <Shot from={CUES.Setup} to={CUES.Login}>
+      <HUD T={T} at={CUES.Setup} x={960} y={160} w={720} h={776} out={out} />
       <div style={{ position: 'absolute', left: 1000, top: 250, width: 640, display: 'flex', flexDirection: 'column', gap: 34 }}>
         <div style={row(0)}>
-          <div style={{ font: `500 11px ${FONT}`, letterSpacing: '0.12em', textTransform: 'uppercase', color: TK.accent, marginBottom: 14 }}>First run · 1 of 3</div>
+          <div style={{ font: `400 11px ${TECH}`, letterSpacing: '0.24em', textTransform: 'uppercase', color: TK.accent, marginBottom: 14, whiteSpace: 'pre' }}>{scramble('FIRST RUN · SESSION 08 · 1 OF 3', t, 0.1)}</div>
           <div style={{ font: `500 46px/1.1 ${FONT}`, letterSpacing: '-0.015em', color: TK.text, minHeight: 52 }}>{typed("Hello. I'm Eternity.", t - 0.3, 18)}<span style={{ opacity: Math.sin(t * 8) > 0 && t < 1.6 ? 1 : 0, color: TK.accent }}>|</span></div>
           <div style={{ font: `400 17px ${FONT}`, color: TK.n500, marginTop: 10, opacity: tw(t, 1.6, 2.2, 0, 1) }}>I run on this device, in real time. Let's set a few things.</div>
         </div>
@@ -181,6 +233,7 @@ function Login({ T, CUES }) {
   const out = tw(t, 6.3, 7.0, 1, 0);
   return (
     <Shot from={CUES.Login} to={CUES.Home}>
+      <HUD T={T} at={CUES.Login} x={820} y={280} w={280} h={280} label="PRESENCE · CAM0" out={tw(t, 3.6, 4.2, 1, 0)} />
       <div style={{ position: 'absolute', left: 960 - 110, top: 420 - 110, width: 220, height: 220, borderRadius: '50%', overflow: 'hidden', opacity: tw(t, 0.2, 0.8, 0, 1) * tw(t, 3.6, 4.2, 1, 0) }}>
         <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(circle at 50% 42%, ${TK.n800}, ${TK.n900})` }} />
         <div style={{ position: 'absolute', left: 70, top: 44, width: 80, height: 92, borderRadius: '46% 46% 42% 42%', background: TK.n700 }} />
@@ -208,7 +261,7 @@ function StatusBar({ T, CUES, total }) {
   const clock = `21:${String(42 + Math.floor((T - CUES.Home) / 20)).padStart(2, '0')}`;
   return (
     <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 44, display: 'flex', alignItems: 'center', padding: '0 28px', font: `500 13px ${FONT}`, color: TK.n400, opacity: o }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Mobius T={T} size={20} glow={0} ringColor={TK.n500} uid="bar" /><Wordmark size={11} color={TK.text} tracking={0.2} /></div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Mobius T={T} size={20} glow={0} ringColor={TK.n500} uid="bar" /><Wordmark T={T} at={CUES.Home} size={11} color={TK.text} tracking={0.2} /></div>
       <span style={{ marginLeft: 'auto', marginRight: 'auto', color: TK.text, fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
       <div style={{ display: 'flex', gap: 22, fontVariantNumeric: 'tabular-nums' }}>
         <span><span style={{ color: TK.accent }}>●</span> live · {Math.round(38 + 6 * nz(3, T))} ms</span><span>NPU {Math.round(12 + 10 * nz(1, T))}%</span><span>Wi‑Fi</span><span>84%</span>
@@ -246,6 +299,7 @@ function Home({ T, CUES }) {
   const rot = t * 2.5;
   return (
     <Shot from={CUES.Home} to={CUES.Launcher + 0.2}>
+      <HUD T={T} at={CUES.Home + 0.3} x={56} y={112} w={1808} h={812} label="HOME · ORBIT · 4 ACTIVE" out={out * dim} color={TK.n700} />
       <svg width="1920" height="1080" style={{ position: 'absolute', inset: 0, opacity: tw(t, 0.6, 1.8, 0, 1) * out }}>
         <circle cx="960" cy="540" r="400" fill="none" pathLength="1" strokeDasharray="0.002 0.01" style={{ stroke: TK.n700, transform: `rotate(${rot}deg)`, transformOrigin: '960px 540px' }} strokeWidth="1" />
         <circle cx="960" cy="540" r="400" fill="none" pathLength="1" strokeDasharray={`${tw(t, 0.6, 2.4, 0, 0.18, MOTION.draw)} 1`} strokeLinecap="round" style={{ stroke: TK.accent, transform: `rotate(${rot * 1.4 - 90}deg)`, transformOrigin: '960px 540px', opacity: 0.6 }} strokeWidth="1.5" />
@@ -277,6 +331,7 @@ function Assistant({ T, CUES }) {
   const thinking = t > 2.6 && t < 3.4;
   return (
     <Shot from={CUES.Assistant} to={CUES.Launcher}>
+      <HUD T={T} at={CUES.Assistant + 3.1} x={540} y={600} w={840} h={260} label="ETERNITY · REALTIME · ON DEVICE" out={out} />
       <div style={{ position: 'absolute', left: 960 - 400, top: 650, width: 800, opacity: tw(t, 3.2, 3.8, 0, 1) * out, transform: `translateY(${tw(t, 3.2, 3.9, 18, 0)}px)` }}>
         <div style={{ font: `400 19px/1.55 ${FONT}`, color: TK.text, minHeight: 90 }}>{words.slice(0, n).join(' ')}<span style={{ display: n < words.length ? 'inline-block' : 'none', width: 8, height: 18, background: TK.accent, marginLeft: 4, verticalAlign: '-3px', opacity: Math.sin(T * 10) > 0 ? 1 : 0.3 }} /></div>
         <div style={{ display: 'flex', gap: 10, marginTop: 22, opacity: tw(t, 6.6, 7.2, 0, 1) }}>
@@ -300,6 +355,7 @@ function Launcher({ T, CUES }) {
   const out = tw(t, 5.3, 6.0, 1, 0);
   return (
     <Shot from={CUES.Launcher} to={CUES.Files}>
+      <HUD T={T} at={CUES.Launcher} x={340} y={130} w={1240} h={820} label="LAUNCHER · 12 APPS" out={out} />
       {APPS.map((a, i) => {
         const ang = (i / APPS.length) * Math.PI * 2 - Math.PI / 2 + t * 0.03;
         const p = tw(t, 0.3 + i * 0.07, 1.0 + i * 0.07, 0, 1, MOTION.pop), r = 150 + 200 * p;
@@ -324,6 +380,7 @@ function Files({ T, CUES }) {
   const done = t > 2.6;
   return (
     <Shot from={CUES.Files} to={CUES.Monitor}>
+      <HUD T={T} at={CUES.Files} x={136} y={216} w={1218} h={648} label="FILES · SEMANTIC INDEX" out={o} />
       <div style={{ position: 'absolute', left: 1340, top: 540, width: 260, height: 1, background: fadeRule('rgba(145,132,217,0.5)'), opacity: o * tw(t, 0.4, 1, 0, 1) }} />
       <div style={{ position: 'absolute', left: 150, top: 230, width: 1190, height: 620, borderRadius: 'var(--radius-lg)', background: TK.surface, boxShadow: 'var(--shadow-md)', opacity: o, transform: `translateY(${tw(t, 0, 0.8, 24, 0)}px) scale(${tw(t, 0, 0.8, 0.96, 1)})`, display: 'grid', gridTemplateColumns: '220px 1fr', overflow: 'hidden' }}>
         <div style={{ padding: '24px 18px', borderRight: `1px solid ${TK.n900}`, display: 'flex', flexDirection: 'column', gap: 4, font: `400 14px ${FONT}`, color: TK.n400 }}>
@@ -369,6 +426,7 @@ function Monitor({ T, CUES }) {
   ];
   return (
     <Shot from={CUES.Monitor} to={CUES.Settings}>
+      <HUD T={T} at={CUES.Monitor} x={150} y={190} w={1620} h={720} label="SYSTEM · 240 HZ SCHEDULER" out={o} />
       <svg width="1920" height="1080" style={{ position: 'absolute', inset: 0, opacity: o }}>
         <circle cx="960" cy="560" r="300" fill="none" pathLength="1" strokeDasharray={`${0.34 + 0.1 * nz(2, T)} 1`} strokeLinecap="round" strokeWidth="3" style={{ stroke: TK.accent, transform: 'rotate(-90deg)', transformOrigin: '960px 560px', opacity: 0.8 }} />
         <circle cx="960" cy="560" r="300" fill="none" strokeWidth="1" style={{ stroke: TK.n800 }} />
@@ -408,8 +466,9 @@ function Settings({ T, CUES, total }) {
   ];
   return (
     <Shot from={CUES.Settings}>
+      <HUD T={T} at={CUES.Settings} x={970} y={176} w={760} h={660} out={o} />
       <div style={{ position: 'absolute', left: 1000, top: 200, width: 700, opacity: o, transform: `translateY(${tw(t, 0, 0.8, 20, 0)}px)` }}>
-        <div style={{ font: `500 11px ${FONT}`, letterSpacing: '0.12em', textTransform: 'uppercase', color: TK.accent, marginBottom: 12 }}>Settings · Eternity</div>
+        <div style={{ font: `400 11px ${TECH}`, letterSpacing: '0.24em', textTransform: 'uppercase', color: TK.accent, marginBottom: 12, whiteSpace: 'pre' }}>{scramble('SETTINGS · ETERNITY', t, 0.1)}</div>
         <div style={{ font: `500 36px ${FONT}`, letterSpacing: '-0.015em', color: TK.text, marginBottom: 30 }}>How she shows up</div>
         {rows.map((r, i) => (
           <div key={r[0]} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 0', background: fadeRule('rgba(233,233,237,0.1)') + ' no-repeat bottom / 100% 1px', font: `400 15px ${FONT}`, color: TK.text, opacity: tw(t, 0.5 + i * 0.12, 1.0 + i * 0.12, 0, 1) }}>
@@ -435,6 +494,7 @@ function Piece({ tweaks }) {
     <div data-screen-label={`t=${Math.floor(T)}s`} style={{ position: 'absolute', inset: 0, fontFamily: FONT, color: TK.text, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse 70% 60% at ${50 + drift / 20}% ${45 + drift / 40}%, #1b1e31 0%, ${TK.bg} 60%, #121421 100%)` }} />
       <div style={{ position: 'absolute', inset: 0, backgroundImage: `radial-gradient(circle at ${x}px ${y}px, rgba(145,132,217,${0.12 * glow}) 0%, transparent ${300 * s + 200}px)` }} />
+      <Sweeps T={T} CUES={CUES} />
       <Boot T={T} CUES={CUES} />
       <Setup T={T} CUES={CUES} />
       <Login T={T} CUES={CUES} />

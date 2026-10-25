@@ -208,6 +208,33 @@ to the centre `(W/2, H/2)` and to edges as the design does.
 - **Boot**: Plymouth keeps scene 01 (already built); the hairline at y 500 (1400 px, draws
   over 1.1 s), the log at (64, bottom 64) 13 px neutral-600 with accent-700 numbering, the
   wordmark 24 px at y 790 and "PERSONAL OS · 08" 11 px Michroma 0.3 em at y 830.
+- **HUD layer (live design, newer than the downloaded bundle; read through the design MCP on
+  2026-10-25)**: every scene is framed by corner brackets (22 px legs, 1.5 px, neutral-500 or
+  neutral-700 on Home) that draw in over 0.8 s, with faint 1 px top and bottom guide lines at
+  22 % and a scan beam (1 px accent-300 fade rule with a 14 px accent glow) that sweeps the
+  frame once; frames per scene: Setup (960,160,720×776), Login (820,280,280×280, label
+  "PRESENCE · CAM0"), Home (56,112,1808×812, "HOME · ORBIT · 4 ACTIVE"), Ask
+  (540,600,840×260, "ETERNITY · REALTIME · ON DEVICE"), Launcher (340,130,1240×820,
+  "LAUNCHER · 12 APPS"), Files (136,216,1218×648, "FILES · SEMANTIC INDEX"), Monitor
+  (150,190,1620×720, "SYSTEM · 240 HZ SCHEDULER"), Settings (970,176,760×660), Boot
+  (620,750,680×130). Labels sit 20 px above the frame in Michroma 10 px, 0.24 em tracking,
+  and **decode** (characters resolve left to right from a pool of `0-9A-F<>/|` at 28 steps/s,
+  35 ms per character, 0.35 s each). Every view change fires a **sweep**: a 96 px grid flash
+  (neutral-700 lines, peak 14 % opacity, gone in 0.8 s) and a full-width scan line
+  (accent-300 fade rule, 24 px glow) travelling top to bottom in 0.8 s. Kickers ("FIRST RUN ·
+  SESSION 08 · 1 OF 3", "SETTINGS · ETERNITY") are Michroma 11 px, 0.24 em, accent, decoding.
+  The **wordmark draws in**: three E bars extend left to right (0.1 + 0.14 i s), letters rise
+  10 px and decode in sequence (0.16 s apart) in accent-300 before settling to the text colour,
+  tracking easing from +0.42 em down to its rest value over 1.8 s; a 2 px accent-200 vertical
+  beam scans across it once with a 12 px glow pulse. In the shell these are *state-change*
+  effects (session start, surface open, workspace switch), each a token in `motion.toml`, and
+  they are the first things "reduced motion" turns off.
+- **Boot log (live design)**: a monospace kernel-style log at (56, 60), 12 px, neutral-500,
+  with right-aligned accent-700 timestamps in brackets (84 px column), one line every 0.3 s;
+  a 1 px accent progress line at y 1040 growing to full width over 2.7 s; the wordmark at 34 px
+  at y 784 and "PERSONAL OS · 08 · LINUX 6.12 RT" (decoding) at y 846. The real lines are the
+  machine's: kernel version, Secure Boot verification, systemd target, the AI runtime, the
+  memory graph (our settings/index store), sensors, the session hand-off.
 - **Motion**: entrances easeOutCubic 0.6-0.8 s with 14-20 px rise; strokes easeInOutSine;
   pops easeOutBack; typed text 24 cps; fade rules 48 px at both ends; nothing bounces more
   than the design does. All durations are tokens (`motion.toml`) so "reduced motion" is one
@@ -462,7 +489,43 @@ is written (GLSL vs. baked atlas) as long as the budget holds; the Hyprland conf
 template; GTK/Qt theme generation details; the polkit action names; the card schema; the
 order inside each build as long as §8's order of sections holds.
 
-## 13. Questions only the owner can answer
+## 13. Builder check (2026-10-25, independent review of this document) and the calls made
+
+1. **The desktop with application windows open** (not shown in the design). My call: windows
+   tile (Hyprland dwindle layout, 12 px gaps) and the presence scene is the *empty-workspace
+   state*; while a workspace holds windows the orbit cards hide and the core glides to the
+   Files-scene placement (right third, s = 0.38) only when ≥ 420 px of free width remains,
+   otherwise it fades out; a dedicated "Home" workspace (Super+Home) always shows the full
+   scene. The command bar is an overlay, not an exclusive zone: it appears on Super+Space over
+   whatever is on screen and dismisses on Esc; on an empty workspace it stays visible as the
+   design draws it. The status strip is the only exclusive zone (44 px). With HDMI connected
+   the presence lives on the laptop panel; external outputs get the strip and windows only.
+2. **PIN**: stays what it is today, a confirmation credential for dangerous actions, and
+   becomes a lock-screen credential (same user, keyring already open). The greeter takes the
+   account passphrase only (PAM, keyring auto-unlock intact; no new PAM module; disk
+   encryption never behind a 4-8 digit secret). "n things since you left" appears on the
+   lock screen only; the greeter shows no personal data before login.
+3. **Evidence and the laptop**: the VM chain runs the Eternity session on whichever
+   compositor renders under TCG (Hyprland with software GL first; labwc if it cannot), and
+   that is accepted VM evidence for the shell's layout and logic. Hyprland-only behaviour
+   (blur, gestures, animations, `hyprctl` checks) and all performance budgets are validated on
+   the laptop; XFCE "Classic" is removed only after the owner signs off a laptop session, not
+   on VM results. The HDMI-to-dGPU wiring (typical for MSI) is read from `eternity-hw`
+   (connector → card) before the dual-GPU policy is fixed; Hyprland's multi-GPU path is one
+   more reason it is the primary target. Owner to say when laptop time is available per build
+   (question 7 below).
+4. **USB persistence**: encrypted by default (LUKS2, passphrase at boot before Plymouth;
+   live-boot `persistence-encryption=luks`), plain only as an explicit "faster, unprotected"
+   choice that the security-posture card flags; the stick writer and `eternity-stick` both
+   default to encrypted. Reason: the persistence holds the Claude sign-in and the keyring.
+5. **The interactive "Claude Code" tile**: shipped as an explicitly labelled expert mode
+   ("runs outside Eternity's consent and undo") with a PreToolUse hook in the managed settings
+   that appends every tool call to Eternity's audit log (Claude Code's own prompt stays the
+   visible decision, no double prompt, deny only for privilege escalation). The anti-goal is
+   kept for everything that calls itself Eternity; the tile is the user opening a developer
+   tool, and says so.
+
+## 14. Questions only the owner can answer
 
 1. **Platform**: Hyprland + Quickshell/QML for the shell (my call, for performance and the
    design's animations) versus staying in Python/GTK 4. Any objection, or any compositor
@@ -474,8 +537,14 @@ order inside each build as long as §8's order of sections holds.
    Or deeper Claude first (sessions, allow-lists, cost readout)?
 4. **Distribution**: is Eternity for your machines only for now? Preinstalled Claude Code
    needs Anthropic's Commercial Terms the day it is distributed.
-5. **Design access**: run `/design-login` in this session so the Claude Design project can
-   be read live (the MCP needs your claude.ai authorisation); until then the unpacked bundle
-   in `docs/design/src/` is the source of truth and matches the file you linked.
+5. **Design access**: done (the owner ran `/design-login` on 2026-10-25); the live project is
+   newer than the downloaded bundle (HUD frames, sweeps, decoding wordmark, kernel-style
+   boot log) and `docs/design/src/eternity08.jsx` now holds the live copy. Any further change
+   in the project: tell me and I re-read it.
 6. **Scale**: the design is 1920×1080; the laptop is 1920×1080 at 100 %. Should the shell
    also support 125/150 % scaling now (it costs little if decided up front)?
+7. **Laptop time**: roughly when, per build, can the stick be booted on the laptop for the
+   performance measurements and the sign-off that gates removing XFCE? The laptop is also
+   the build host, so each laptop session pauses the chain.
+8. **Encrypted stick by default** (my call in §13.4): a passphrase at every boot of the stick
+   in exchange for the sign-in and the keyring being protected. Agree?
