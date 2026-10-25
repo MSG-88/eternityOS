@@ -68,6 +68,12 @@ render 1536 864 presence && {
     grep -iE "error|exception" "$OUT/presence/log.txt" | grep -vE "ServerNotFoundError|theme.json" | grep -q . && bad "presence: errors in log" || ok "presence: clean log"
 }
 # the same workspace with windows: cards hide, the core moves to the Files placement
+# answering: the presence slides left (centre 640k) so the right column is the answer's
+render 1536 864 presence-answer && {
+    check presence-answer 'near(it["core"][0] + it["core"][2]/2, 640*k, 1) and near(it["core"][1] + it["core"][3]/2, 540*k, 1)' "answering: core at (640k, 540k)"
+    check presence-answer 'near(it["core"][2], 600*0.42*k, 2)' "answering: core s 0.42"
+    check presence-answer 'near(it["card0"][0] + 150*k, 640*k, 2) and it["cx"][4] == "answering"' "answering: cards orbit the shifted centre"
+}
 render 1536 864 presence-windows && {
     check presence-windows 'it["cards_visible"] is False' "windows: cards hidden"
     check presence-windows 'near(it["core"][0] + it["core"][2]/2, 1600*k, 1) and near(it["core"][2], 600*0.38*k, 2)' "windows: core at (1600k, 540k) s 0.38"
@@ -83,8 +89,7 @@ render 1536 864 bar && {
 render 1536 864 bar-focused && check bar-focused 'd["focused"] is True and d["active"] is True and d["ring"] is True' "focused: accent ring, active overlay"
 # streamed answer: three text deltas then done (harness feeds the events)
 render 1536 864 answer && {
-    check answer 'it["answer"][4] == "Done. Design review is now tomorrow at 15:00." and near(it["answer"][0], 560*k, 1) and near(it["answer"][1], 650*k, 2) and near(it["answer"][2], 800*k, 1)' "answer text at (560k, 650k) w 800k"
-    check answer 'near(it["rule"][1], 620*k, 1) and near(it["rule"][2], 800*k, 1)' "rule at y 620k"
+    check answer 'it["answer"][4] == "Done. Design review is now tomorrow at 15:00." and near(it["answer"][0], 1180*k, 1) and near(it["answer"][1], 140*k, 2) and near(it["answer"][2], 680*k, 1)' "answer text in the right column at (1180k, 140k) w 680k"
     check answer 'd["caret"] is False and it["readout"][4].find("tok/s") >= 0' "caret hidden after done, readout shows tok/s"
     check answer 'd["thinking"] is False' "thinking line hidden after done"
     check answer 'near(it["readout"][0] + it["readout"][2], 1536 - 40*k, 2) and near(it["readout"][1], 60*k, 2)' "readout top-right (right 40k, top 60k)"

@@ -10,13 +10,16 @@ Item {
     property real k: 1
     property var cards: Daemon.cards
     property string windowState: "empty"      // "empty" | "windows"
+    property bool answering: false            // an answer is on screen: everything slides left, the right column is the answer's
+    property real cx: answering ? 640 : 960    // orbit centre x (design px)
+    Behavior on cx { NumberAnimation { duration: Theme.enterMs + 300; easing.type: Easing.InOutCubic } }
     property bool animated: !Theme.reduced
     property bool dimmed: false               // while an answer streams
     property real rot: 0
     readonly property bool cardsVisible: windowState === "empty"
-    readonly property real coreX: windowState === "empty" ? 960 : 1600
+    readonly property real coreX: answering ? 640 : (windowState === "empty" ? 960 : 1600)
     readonly property real coreY: 540
-    readonly property real coreS: windowState === "empty" ? 0.5 : 0.38
+    readonly property real coreS: answering ? 0.42 : (windowState === "empty" ? 0.5 : 0.38)
 
     // ground: the design's vignette and the glow that follows the core
     Rectangle { anchors.fill: parent; color: Theme.bg }
@@ -47,11 +50,11 @@ Item {
         ShapePath {
             strokeColor: Theme.n700; strokeWidth: Math.max(1, root.k); fillColor: "transparent"
             strokeStyle: ShapePath.DashLine; dashPattern: [0.5, 2.5]
-            PathAngleArc { centerX: 960 * root.k; centerY: 540 * root.k; radiusX: 400 * root.k; radiusY: 400 * root.k; startAngle: 0; sweepAngle: 360 }
+            PathAngleArc { centerX: root.cx * root.k; centerY: 540 * root.k; radiusX: 400 * root.k; radiusY: 400 * root.k; startAngle: 0; sweepAngle: 360 }
         }
         ShapePath {
             strokeColor: Theme.accent; strokeWidth: 1.5 * root.k; fillColor: "transparent"; capStyle: ShapePath.RoundCap
-            PathAngleArc { centerX: 960 * root.k; centerY: 540 * root.k; radiusX: 400 * root.k; radiusY: 400 * root.k; startAngle: -90 + root.rot * 1.4; sweepAngle: 0.18 * 360 }
+            PathAngleArc { centerX: root.cx * root.k; centerY: 540 * root.k; radiusX: 400 * root.k; radiusY: 400 * root.k; startAngle: -90 + root.rot * 1.4; sweepAngle: 0.18 * 360 }
         }
         opacity: 0.6
     }
@@ -70,7 +73,7 @@ Item {
             k: root.k
             kicker: modelData.kicker || ""; title: modelData.title || ""; body: modelData.body || ""; meta: modelData.meta || ""
             readonly property real angle: ([-90, 0, 90, 180][index % 4] + Math.floor(index / 4) * 45 + root.rot) * Math.PI / 180
-            x: 960 * root.k + Math.cos(angle) * Theme.orbit[0] * root.k - 150 * root.k
+            x: root.cx * root.k + Math.cos(angle) * Theme.orbit[0] * root.k - 150 * root.k
             y: 540 * root.k + Math.sin(angle) * Theme.orbit[1] * root.k - 60 * root.k
             visible: root.cardsVisible
             opacity: (root.dimmed && index !== 0) ? 0.1 : 1
@@ -94,6 +97,7 @@ Item {
         const out = { core: [root.coreX * root.k - 300 * root.k * root.coreS, root.coreY * root.k - 300 * root.k * root.coreS, 600 * root.k * root.coreS, 600 * root.k * root.coreS, ""],
                       caption: [caption.x, caption.y, caption.width, caption.height, caption.text], cards_visible: root.cardsVisible };
         const h = hud.geometry(); out.hud = h.hud; out.hud[0] = hud.x; out.hud[1] = hud.y; out.hudleg = h.hudleg;
+        out["cx"] = [root.cx * root.k, 540 * root.k, 0, 0, root.answering ? "answering" : ""];
         for (let i = 0; i < orbit.count; i++) { const c = orbit.itemAt(i); if (c) out["card" + i] = [c.x, c.y, c.width, c.height, c.kicker]; }
         return out;
     }

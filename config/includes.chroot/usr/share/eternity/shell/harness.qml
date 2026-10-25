@@ -39,7 +39,7 @@ ShellRoot {
                 id: presenceLoader
                 anchors.fill: parent
                 active: root.presence
-                sourceComponent: PresenceContent { k: root.k; cards: root.designCards; animated: false; windowState: root.scenario === "presence-windows" ? "windows" : "empty" }
+                sourceComponent: PresenceContent { k: root.k; cards: root.designCards; animated: false; windowState: root.scenario === "presence-windows" ? "windows" : "empty"; answering: root.scenario === "presence-answer" }
             }
             StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene && !root.greeterScene && !root.ringScene && !root.notifyScene && !root.settingsScene && !root.monitorScene }
             Loader {

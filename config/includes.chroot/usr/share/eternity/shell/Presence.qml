@@ -17,7 +17,7 @@ PanelWindow {
     readonly property bool hasWindows: {
         try { const m = Hyprland.monitorFor(screen); const ws = m ? m.activeWorkspace : null; return ws ? ws.toplevels.values.length > 0 : false; } catch (e) { return false; }
     }
-    PresenceContent { id: content; anchors.fill: parent; k: win.k; windowState: win.hasWindows ? "windows" : "empty" }
+    PresenceContent { id: content; anchors.fill: parent; k: win.k; windowState: win.hasWindows ? "windows" : "empty"; answering: Ask.answering }
     Connections {
         target: Hyprland
         function onFocusedWorkspaceChanged() { Hyprland.refreshToplevels(); content.playSweep(); }

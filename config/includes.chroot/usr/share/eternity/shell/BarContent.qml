@@ -2,9 +2,10 @@ import QtQuick
 
 // Ask Eternity (design scenes 04/05): the command bar 800x54 at (560, 950), radius 14, surface,
 // shadow-sm; focused: 1 px accent ring + accent glow; a breathing accent dot; placeholder "Ask
-// Eternity, or type a command"; chip "Super Space". Above it while an answer runs: the thinking
-// line at y 580, a fade rule at y 620, the streamed reply at (560, 650) w 800 (Inter 19/1.55)
-// with a blinking 8x18 accent caret, action cards, and the readout top-right (right 40, top 60).
+// Eternity, or type a command"; chip "Super Space". While an answer runs the presence slides left
+// (Ask.answering) and the reply runs down the right-hand column as plain text: thinking line and
+// reply at (1180, 140) w 680 (Inter 19/1.55), no box, a blinking 8x18 accent caret, action chips
+// below the text, the readout top-right (right 40, top 60). Owner's direction of 2026-10-26.
 // Consent requests from the daemon open the dialog centred. Quick commands as in the GTK bar.
 Item {
     id: root
@@ -85,16 +86,17 @@ Item {
     }
 
     // --- the answer surface ----------------------------------------------------------
+    Binding { target: Ask; property: "answering"; value: root.active && root.hasAnswer }
     Text {
         id: thinking
         visible: root.active && root.streaming && root.answerText === ""
-        anchors.horizontalCenter: parent.horizontalCenter; y: 580 * root.k
+        x: 1180 * root.k; y: 140 * root.k
         text: root.statusText !== "" ? root.statusText : "Thinking\u2026"; color: Theme.n500; font.family: Theme.body; font.pixelSize: 14 * root.k
     }
     Rectangle {
         id: rule
-        visible: root.active && root.hasAnswer
-        x: 560 * root.k; y: 620 * root.k; width: 800 * root.k; height: Math.max(1, root.k)
+        visible: false               // no box, no rule: the answer is plain text on the desktop
+        x: 1180 * root.k; y: 120 * root.k; width: 680 * root.k; height: Math.max(1, root.k)
         gradient: Gradient { orientation: Gradient.Horizontal
             GradientStop { position: 0; color: "transparent" } GradientStop { position: 0.06; color: Qt.rgba(Theme.text.r, Theme.text.g, Theme.text.b, 0.22) }
             GradientStop { position: 0.94; color: Qt.rgba(Theme.text.r, Theme.text.g, Theme.text.b, 0.22) } GradientStop { position: 1; color: "transparent" } }
@@ -102,7 +104,7 @@ Item {
     Item {
         id: answerBox
         visible: root.active && root.hasAnswer
-        x: 560 * root.k; y: 650 * root.k; width: 800 * root.k
+        x: 1180 * root.k; y: 140 * root.k; width: 680 * root.k
         Text {
             id: answer
             width: parent.width
@@ -189,6 +191,7 @@ Item {
         else if (word === "/settings") Daemon.call("ask.show", {}, null), Qt.callLater(() => Quickshell.execDetached(["eternity-settings"]));
         else if (word === "/local") Daemon.call("settings.set", { key: "on_device_only", value: true }, (r, e) => { root.statusText = r ? "On this device for now." : e; });
         else if (word === "/claude") Daemon.call("settings.set", { key: "provider", value: "claude_code" }, (r, e) => { root.statusText = r ? "Asking Claude (your Claude account) from now on. /local switches back." : e; });
+        else if (word === "/trust") { const n = parseInt(cmd.split(" ")[1] || ""); if (!(n >= 0 && n <= 2)) root.statusText = "Usage: /trust 0 (ask always) | 1 (ask for changes) | 2 (just do it)"; else Daemon.call("settings.set", { key: "trust_level", value: n }, (r, e) => { root.statusText = r ? ["Asking before every action.", "Asking before changes.", "Acting without asking; everything is logged and undoable."][n] : e; }); }
         else if (word === "/ondevice") Daemon.call("settings.set", { key: "provider", value: "local" }, (r, e) => { root.statusText = r ? "Asking the on-device model from now on." : e; });
         else if (word === "/sessions") Daemon.call("claude.sessions", { limit: 10 }, (r, e) => { root.statusText = r ? (r.sessions.map((s, i) => (i + 1) + ". " + s.started + "  " + s.first_question).join("\n") || "No Claude sessions yet.") : e; });
         else if (word === "/resume") { const n = parseInt(cmd.split(" ")[1] || "0"); Daemon.call("claude.sessions", { limit: 10 }, (r, e) => { if (!r || !r.sessions[n - 1]) { root.statusText = "Usage: /resume N (see /sessions)."; return; } Daemon.call("claude.resume", { session_id: r.sessions[n - 1].session_id }, (r2, e2) => { root.statusText = r2 ? "Continuing: " + r.sessions[n - 1].first_question : e2; }); }); }
