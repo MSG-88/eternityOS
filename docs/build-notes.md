@@ -525,3 +525,14 @@ UTC labelled IST under Git Bash (no zoneinfo): fixed.
   The product never uses "Claude Code" or Anthropic marks in a feature name (the option is
   "Claude (your Claude account)", described as "runs Claude Code").
 - Host tests: 61 unit tests + UI smoke under Xvfb PASS (2026-10-25 15:20).
+
+### Phase 3 feasibility spike (2026-10-25 14:10, build host, not product code)
+
+`tools/dev/spike-quickshell.sh`: `trixie-backports` enabled on the WSL build host; Quickshell
+0.3.0-1~bpo13+1 installs (7 MB) with the Qt Quick QML modules; Hyprland 0.55.2+ds-1~bpo13+1,
+hyprlock, hypridle and xdg-desktop-portal-hyprland download and resolve on Debian 13.
+`tools/dev/spike-shell.qml`: a Quickshell scene runs headless with
+`QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` and `grabToImage` writes a PNG, so QML
+screenshot tests can run on the host and the shell has a software-rendering path for the TCG
+VMs. The Qt platform plugins present include wayland-egl, offscreen, eglfs, linuxfb and vnc.
+Decision recorded in the phase 3 spec §4.1 (Hyprland + Quickshell), pending the owner's answer.
