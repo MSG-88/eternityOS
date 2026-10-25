@@ -1,0 +1,47 @@
+#!/bin/sh
+# live-config component: choose the greeter's default session from the kernel command line.
+#   eternity.session=eternity   -> the Eternity Wayland session (Hyprland + shell)
+#   eternity.session=xfce       -> Eternity Classic (XFCE), the default while the new session is proven
+# Writes /etc/lightdm/lightdm.conf.d/20-session.conf; the user can still pick the other session in the greeter.
+
+. /usr/lib/live/config.sh
+
+ETERNITY_SESSION=""
+
+Cmdline ()
+{
+	for _PARAMETER in ${LIVE_CONFIG_CMDLINE}
+	do
+		case "${_PARAMETER}" in
+			eternity.session=*)
+				ETERNITY_SESSION="${_PARAMETER#eternity.session=}"
+				;;
+		esac
+	done
+}
+
+Init ()
+{
+	if component_was_executed "eternity-session"
+	then
+		exit 0
+	fi
+
+	echo -n " eternity-session"
+}
+
+Config ()
+{
+	if [ -n "${ETERNITY_SESSION}" ] && [ -d /etc/lightdm/lightdm.conf.d ]
+	then
+		printf '[Seat:*]
+user-session=%s
+' "${ETERNITY_SESSION}" > /etc/lightdm/lightdm.conf.d/20-session.conf
+	fi
+
+	touch /var/lib/live/config/eternity-session
+}
+
+Cmdline
+Init
+Config

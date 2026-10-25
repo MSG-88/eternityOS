@@ -153,6 +153,19 @@ check_claude_code() {
     return 0
 }
 
+check_session() {
+    # Build 13: the Eternity Wayland session is packaged (Hyprland + Quickshell), its theme renders, the shell loads.
+    [ -s /usr/share/wayland-sessions/eternity.desktop ] || { echo "eternity.desktop missing"; return 1; }
+    local b
+    for b in Hyprland quickshell hypridle eternity-session eternity-theme eternity-daemon; do
+        command -v "$b" >/dev/null 2>&1 || { echo "$b missing"; return 1; }
+    done
+    echo "INFO session: $(Hyprland --version 2>/dev/null | head -1 | cut -c1-60) / $(quickshell --version 2>/dev/null | head -1)" >&2
+    HOME=$(mktemp -d) XDG_CONFIG_HOME=$(mktemp -d) eternity-theme render --check || { echo "eternity-theme render --check failed"; return 1; }
+    [ -f /usr/share/eternity/shell/shell.qml ] || { echo "shell.qml missing"; return 1; }
+    return 0
+}
+
 check_secureboot() {
     [ -d /sys/firmware/efi ] || { echo "not an EFI boot"; return 2; }
     mokutil --sb-state 2>/dev/null | grep -q 'SecureBoot enabled' || { echo "$(mokutil --sb-state 2>&1 | head -1)"; return 1; }

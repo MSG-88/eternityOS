@@ -1,0 +1,5 @@
+# The Eternity session stack comes from trixie-backports (Hyprland 0.55, Quickshell 0.3 and
+# their libraries); everything else stays on trixie.
+Package: hyprland quickshell hypridle xdg-desktop-portal-hyprland hyprland-protocols hyprutils* hyprlang* hyprcursor* hyprgraphics* aquamarine*
+Pin: release n=trixie-backports
+Pin-Priority: 600

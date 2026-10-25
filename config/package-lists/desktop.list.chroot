@@ -59,3 +59,23 @@ fonts-dejavu-core
 bluez
 libspa-0.2-bluetooth
 blueman
+# The Eternity session (phase 3): Hyprland + Quickshell shell, Qt Quick modules, portals, tools
+hyprland
+hypridle
+xdg-desktop-portal-hyprland
+xdg-desktop-portal-gtk
+quickshell
+qml6-module-qtquick
+qml6-module-qtquick-controls
+qml6-module-qtquick-layouts
+qml6-module-qtquick-shapes
+qml6-module-qtquick-effects
+qml6-module-qtquick-window
+qml6-module-qtquick-templates
+qml6-module-qt5compat-graphicaleffects
+qml6-module-qtqml-workerscript
+qt6-wayland
+wl-clipboard
+grim
+slurp
+fonts-jetbrains-mono

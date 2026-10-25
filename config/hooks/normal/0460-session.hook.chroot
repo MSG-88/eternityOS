@@ -1,0 +1,8 @@
+#!/bin/sh
+# The Eternity session (Hyprland + Quickshell): permissions, the per-system defaults directory,
+# and a build-log line with the versions that went into the image.
+set -e
+chmod 755 /usr/local/bin/eternity-session /usr/lib/live/config/0032-eternity-session
+mkdir -p /etc/xdg/eternity
+[ -f /usr/share/wayland-sessions/eternity.desktop ] || { echo "eternity.desktop missing"; exit 1; }
+echo "session: $(Hyprland --version 2>/dev/null | head -1) / $(quickshell --version 2>/dev/null | head -1)"

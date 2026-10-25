@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Eternity
+Comment=The presence is the desktop (Hyprland + the Eternity shell)
+Exec=eternity-session
+Type=Application
+DesktopNames=Eternity

@@ -1,0 +1,33 @@
+#!/bin/sh
+# The Eternity session: generate the Hyprland config and the shell theme from the user's tokens
+# (/usr/share/eternity/*.toml overlaid by ~/.config/eternity/*.toml), then run Hyprland, which
+# starts eternity-daemon and the Quickshell shell (exec-once lines in the generated config).
+# Started by the display manager through /usr/share/wayland-sessions/eternity.desktop.
+export XDG_CURRENT_DESKTOP=Eternity
+export XDG_SESSION_DESKTOP=Eternity
+export XDG_SESSION_TYPE=wayland
+export QT_QPA_PLATFORM=wayland
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+export QT_QPA_PLATFORMTHEME=gtk3
+export MOZ_ENABLE_WAYLAND=1
+export GDK_BACKEND=wayland,x11
+export ETERNITY_SESSION=1
+CFG="${XDG_CONFIG_HOME:-$HOME/.config}/eternity/generated"
+mkdir -p "$CFG"
+# Software rendering when no hardware GPU driver is bound (QEMU bochs/virtio without GL).
+hw=0
+for d in /sys/class/drm/card[0-9]*/device/driver; do
+    case "$(basename "$(readlink "$d" 2>/dev/null)")" in
+        amdgpu|i915|xe|nouveau|radeon|nvidia|virtio_gpu|panfrost|msm|vc4) hw=1 ;;
+    esac
+done
+if [ "$hw" = 0 ] || [ -n "$ETERNITY_SOFTWARE_GL" ]; then
+    export WLR_RENDERER_ALLOW_SOFTWARE=1
+    export AQ_NO_MODIFIERS=1
+    export LIBGL_ALWAYS_SOFTWARE=1
+    export QT_QUICK_BACKEND=software
+    export ETERNITY_SOFTWARE_GL=1
+fi
+eternity-theme render || echo "eternity-session: theme render failed, using the shipped defaults" >&2
+[ -s "$CFG/hyprland.conf" ] || cp /usr/share/eternity/hyprland.fallback.conf "$CFG/hyprland.conf" 2>/dev/null
+exec Hyprland --config "$CFG/hyprland.conf"
