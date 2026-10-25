@@ -83,3 +83,15 @@ command bar, semantic file search, the monitor and the settings page. The palett
 matches the phase 1 branding (dark navy, violet accent, Inter); the Möbius mark and
 Michroma wordmark are new and should replace the current logo assets in `branding/`.
 See the design section of `docs/backlog.md` for the work items derived from this capture.
+
+## Unpacked sources (2026-10-25)
+
+`docs/design/src/` holds the files the bundle carries, unpacked from its manifest:
+`eternity08.jsx` (the piece: geometry, tokens, motion, copy), `animations-v3.jsx` (the
+composition engine), `tweaks-panel.jsx`, `nocturne.css` (the design-system tokens and
+component classes), `template.html` (the page), `dc-runtime.js` (the runtime), `scenes.js`
+(scene list) and the Inter/Michroma woff2 fonts. The phase 3 shell is built from
+`eternity08.jsx` element by element; see
+`docs/superpowers/specs/2026-10-25-eternity-08-phase3-design.md` §4.2 for the extracted
+geometry. The live project can be read through the design MCP once the owner runs
+`/design-login`.
