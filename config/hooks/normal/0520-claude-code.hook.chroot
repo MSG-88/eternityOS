@@ -1,0 +1,11 @@
+#!/bin/sh
+# Claude Code from Anthropic's signed apt repository, pinned (/etc/apt/preferences.d/claude-code).
+# Done here, after ca-certificates exist in the chroot, because live-build's bootstrap apt cannot
+# verify an https archive (build 13 failed on "certificate verify failed").
+set -e
+test -s /etc/apt/keyrings/claude-code.asc
+chmod 644 /etc/apt/keyrings/claude-code.asc
+apt-get update
+apt-get install -y --no-install-recommends claude-code
+claude --version
+apt-get clean

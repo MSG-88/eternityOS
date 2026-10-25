@@ -1,0 +1,8 @@
+# Anthropic's Claude Code apt repository (stable channel), signed by the Claude Code release key.
+# Installed by hook 0520 at build time (the bootstrap chroot has no CA certificates yet, so this
+# cannot be a live-build archive); kept on the installed system for `apt upgrade`.
+Types: deb
+URIs: https://downloads.claude.ai/claude-code/apt/stable
+Suites: stable
+Components: main
+Signed-By: /etc/apt/keyrings/claude-code.asc

@@ -16,7 +16,7 @@ esc() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
 latest=$(tail -1 "$LOG" 2>/dev/null | esc)
 {
 cat <<HTML
-<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Eternity 08 overnight</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Eternity 08 progress</title>
 <meta http-equiv="refresh" content="30"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 :root{--bg:#161826;--surface:#232532;--text:#e9e9ed;--muted:#9397ab;--accent:#9184d9;--ok:#7fd1a8;--warn:#e8c07a;--bad:#e88a8a;--line:rgba(233,233,237,.16)}
@@ -34,7 +34,7 @@ table{width:100%;border-collapse:collapse}td{padding:6px 4px;border-bottom:1px s
 img{max-width:100%;border:1px solid var(--line);border-radius:8px;display:block;background:#000}
 .foot{color:var(--muted);font-size:12px;margin-top:18px}
 </style></head><body>
-<h1>Eternity <b>08</b> · overnight session</h1>
+<h1>Eternity <b>08</b> · live progress</h1>
 <div class="sub">Page regenerated $(ts) · reloads every 30 s · file: tests/out/live/index.html</div>
 <div class="grid"><div>
 <div class="card"><div class="k">Now</div><div class="now">${latest:-starting}</div>
@@ -48,6 +48,10 @@ HTML
 if [ -s "$PH" ]; then sort -t$'\t' -k2 "$PH" | esc | awk -F'\t' '{printf "<tr><td>%s</td><td class=\"s-%s\">%s<br><small style=\"color:#9397ab\">%s</small></td></tr>\n",$2,tolower($3),$3,$1}'; else echo '<tr><td colspan=2 class="s-todo">no phases recorded yet</td></tr>'; fi
 cat <<HTML
 </table></div>
+<div class="card" style="margin-top:16px"><div class="k">Shell renders (offscreen, design geometry at 125 %)</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+$(for f in $(ls "$D/shots" 2>/dev/null | sort); do n=${f#build}; n=${n%-offscreen.png}; echo "<figure style=\"margin:0\"><img src=\"shots/$f\" alt=\"$n\"><figcaption class=\"foot\">$n</figcaption></figure>"; done)
+</div></div>
 <div class="card" style="margin-top:16px"><div class="k">Test VM, live</div>
 <img src="../install/live.png?$(date +%s)" alt="no VM screenshot yet" onerror="this.alt='no VM running right now'">
 <div class="foot">$(cat tests/out/install/live.txt 2>/dev/null | esc) · screenshots refresh every 30 s while a QEMU test runs</div></div>
