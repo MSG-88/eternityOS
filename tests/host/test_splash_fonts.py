@@ -35,19 +35,18 @@ class TestSplashFonts(unittest.TestCase):
         self.assertIn("prereqs", s)
         self.assertIn("copy_file font " + INTER, s)
         self.assertIn("copy_file font " + MONO, s)
-        self.assertIn("/usr/share/fonts/Plymouth.ttf", s)       # the Debian symlink must resolve in both roots
         subprocess.run(["sh", "-n", os.path.join(ROOT, HOOK)], check=True)
 
     def test_initramfs_hook_is_executable_in_git(self):
         mode = subprocess.run(["git", "ls-files", "-s", HOOK], cwd=ROOT, capture_output=True, text=True).stdout
         self.assertTrue(mode.startswith("100755"), mode or "not in git")
 
-    def test_real_root_gets_the_same_plymouth_symlinks(self):
-        s = read(THEME_HOOK)
-        self.assertIn("ln -sfn", s)
-        self.assertIn("/usr/share/fonts/Plymouth.ttf", s)
-        self.assertIn("/usr/share/fonts/Plymouth-monospace.ttf", s)
-        self.assertIn("fc-match -f %{file}", s)                  # same choice as Debian's initramfs hook
+    def test_nothing_creates_plymouth_links_in_the_real_root(self):
+        # Build 14 failed: a /usr/share/fonts/Plymouth.ttf link in the real root sorts first for
+        # fontconfig, Debian's plymouth hook then copies it as the default font and dies on its own
+        # `ln -s` ("File exists"). Inter at its real path covers both roots; no links anywhere.
+        for rel in (THEME_HOOK, HOOK):
+            self.assertNotIn("/usr/share/fonts/Plymouth", read(rel), rel)
 
 
 if __name__ == "__main__":

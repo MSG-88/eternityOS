@@ -2,8 +2,8 @@
 # Eternity 08: ship the splash fonts in the initramfs at the same paths they have in the real
 # root. Plymouth starts in the initramfs and is moved into the real root (plymouth --newroot)
 # before the boot-log lines are drawn; a font it resolved in the initramfs must still exist at
-# that path afterwards. Debian's own hook only links /usr/share/fonts/Plymouth.ttf inside the
-# initramfs, which is why "Sans" drew boxes in build 13 (tests/host/test_splash_fonts.py).
+# that path afterwards. Debian's own hook links the fc-match default font inside the initramfs
+# only, which is why "Sans" drew boxes in build 13; the theme names Inter (tests/host/test_splash_fonts.py).
 PREREQ="plymouth"
 prereqs() { echo "$PREREQ"; }
 case "$1" in
@@ -14,7 +14,4 @@ esac
 copy_file font /usr/share/fonts/opentype/inter/Inter-Regular.otf
 copy_file font /usr/share/fonts/opentype/inter/Inter-Medium.otf
 copy_file font /usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf
-# Debian's hook made these symlinks point at fc-match's default; make sure both exist here too
-[ -e "${DESTDIR}/usr/share/fonts/Plymouth.ttf" ] || ln -sfn /usr/share/fonts/opentype/inter/Inter-Regular.otf "${DESTDIR}/usr/share/fonts/Plymouth.ttf"
-[ -e "${DESTDIR}/usr/share/fonts/Plymouth-monospace.ttf" ] || ln -sfn /usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf "${DESTDIR}/usr/share/fonts/Plymouth-monospace.ttf"
 exit 0
