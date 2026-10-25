@@ -24,6 +24,7 @@ a lock or a consent is pending is told about it; settings are re-read from disk 
 process wrote them. Standard library only.
 """
 import collections
+import glob
 import datetime as _dt
 import json
 import os
@@ -165,6 +166,7 @@ class Daemon:
         self.agent: Optional[G.Agent] = None
         self.locked = False
         self._lock_event = threading.Event()
+        self.history: Deque[dict] = collections.deque(maxlen=60)
         self.methods: Dict[str, Callable[[dict], object]] = {
             "ping": lambda p: {}, "subscribe": self.m_subscribe, "state.get": self.m_state, "cards.get": self.m_cards, "metrics.sample": self.m_metrics,
             "settings.get": self.m_settings_get, "settings.set": self.m_settings_set, "ask.start": self.m_ask_start,
@@ -172,7 +174,7 @@ class Daemon:
             "consent.ask": self.m_consent_ask, "session.lock": self.m_lock, "session.locked": self.m_locked, "session.unlocked": self.m_unlocked,
             "session.lock_info": self.m_lock_info, "pin.verify": self.m_pin,
             "hw.summary": self.m_hw, "launcher.index": self.m_launcher, "launcher.show": self.m_launcher_show, "launcher.launch": self.m_launcher_launch,
-            "settings.show": self.m_settings_show, "theme.get": self.m_theme_get, "theme.set": self.m_theme_set, "theme.presets": self.m_theme_presets, "theme.apply_preset": self.m_theme_preset,
+            "settings.show": self.m_settings_show, "metrics.history": self.m_metrics_history, "metrics.processes": self.m_processes, "monitor.show": self.m_monitor_show, "theme.get": self.m_theme_get, "theme.set": self.m_theme_set, "theme.presets": self.m_theme_presets, "theme.apply_preset": self.m_theme_preset,
             "notifications.store": self.m_notif_store, "notifications.recent": self.m_notif_recent, "notifications.seen": self.m_notif_seen, "osd.show": self.m_osd, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
         }
         # methods answered on a worker thread because they block on the user or on slow probes
@@ -517,8 +519,38 @@ class Daemon:
         except (OSError, ValueError):
             pass
         mem = C.memory()
-        return {"cpu": C.cpu_percent(), "mem_gb": mem.get("used_gb"), "ai_tps": tps, "latency_ms": lat.get("latency_ms"),
-                "dropped_frames": lat.get("dropped_frames")}
+        sample = {"cpu": C.cpu_percent(), "mem_gb": mem.get("used_gb"), "ai_tps": tps, "latency_ms": lat.get("latency_ms"),
+                  "dropped_frames": lat.get("dropped_frames"), "ts": time.time()}
+        self.history.append(sample)
+        return sample
+
+    def m_metrics_history(self, params: dict) -> dict:
+        rows = list(self.history)
+        series = {k: [r.get(k) for r in rows] for k in ("cpu", "mem_gb", "ai_tps", "latency_ms", "dropped_frames")}
+        return {"series": series, "accel": bool(glob.glob("/sys/class/accel/accel*")), "samples": len(rows)}
+
+    def m_processes(self, params: dict) -> dict:
+        rows = []
+        for d in glob.glob("/proc/[0-9]*"):
+            try:
+                with open(os.path.join(d, "status"), encoding="utf-8", errors="replace") as f:
+                    name, rss = "", 0
+                    for line in f:
+                        if line.startswith("Name:"):
+                            name = line.split(":", 1)[1].strip()
+                        elif line.startswith("VmRSS:"):
+                            rss = int(line.split()[1])
+                            break
+                if rss:
+                    rows.append({"pid": int(os.path.basename(d)), "comm": name, "rss_mb": round(rss / 1024, 1)})
+            except (OSError, ValueError):
+                continue
+        rows.sort(key=lambda r: -r["rss_mb"])
+        return {"processes": rows[: int(params.get("limit", 12))]}
+
+    def m_monitor_show(self, params: dict) -> dict:
+        self.emit("monitor.show", {})
+        return {}
 
     # -- assistant ---------------------------------------------------------------------
     def _make_agent(self) -> G.Agent:

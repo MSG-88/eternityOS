@@ -161,6 +161,19 @@ render 1536 864 settings-offline && check settings-offline 'd["controls_enabled"
 render 1536 864 settings-appearance && check settings-appearance 'd["page"] == "Appearance" and d["presets"] == ["Nocturne", "Nocturne Light", "Mono", "High contrast", "Quiet"] and d["scales"] == [1, 1.25, 1.5]' "appearance: presets and scales"
 render 1536 864 settings-assistant && check settings-assistant 'd["page"] == "Assistant" and d["providers"] >= 3 and d["allow_tools"] >= 8' "assistant: providers and allow-list"
 [ -f "$OUT/settings-eternity/settings-eternity.png" ] && ok "settings-eternity.png written" || bad "settings-eternity.png missing"
+# slice 2: Monitor (four 400-wide panels, 400x70 sparklines, the 300 ring at 960,560, the status line at y 880)
+render 1536 864 monitor && {
+    check monitor 'near(it["panel0"][0], 180*k, 1) and near(it["panel0"][1], 220*k, 1) and near(it["panel0"][2], 400*k, 1)' "panel 0 at (180k, 220k) 400k wide"
+    check monitor 'near(it["panel1"][0], 1340*k, 1) and near(it["panel3"][1], 680*k, 1)' "panel 1 at x 1340k, panel 3 at y 680k"
+    check monitor 'near(it["spark0"][2], 400*k, 1) and near(it["spark0"][3], 70*k, 1)' "sparkline 400k x 70k"
+    check monitor 'near(it["ring"][0] + it["ring"][2]/2, 960*k, 1) and near(it["ring"][1] + it["ring"][3]/2, 560*k, 1) and near(it["ring"][2], 600*k, 2)' "ring r 300 at (960k, 560k)"
+    check monitor 'near(it["status"][1], 880*k, 2) and it["status"][4].find("CPU LOAD") >= 0 and it["status"][4].find("DROPPED FRAMES") >= 0' "status line at y 880k"
+    check monitor 'd["labels"] == ["CPU", "AI", "Memory", "Input latency"] and it["value0"][4] == "18%" and it["value2"][4] == "5.2 GB" and it["value3"][4] == "6 ms"' "panel labels and values from the metrics"
+    check monitor 'it["value1"][4] == "170 tok/s"' "AI panel shows tok/s"
+}
+render 1536 864 monitor-bare && check monitor-bare 'it["value1"][4] == "idle" and it["value3"][4] == "\u2014" and d["labels"][1] == "AI" and d["npu"] is False' "no AI run, no latency: idle and a dash, never a zero"
+render 1536 864 monitor-npu && check monitor-npu 'd["labels"][1] == "NPU" and d["npu"] is True' "an accel device turns the AI panel into NPU"
+[ -f "$OUT/monitor/monitor.png" ] && ok "monitor.png written" || bad "monitor.png missing"
 render 1536 864 latency && check latency 'd["lat_count"] == 20 and near(d["lat_p95"], 19, 1) and d["lat_file"].endswith("/eternity/latency.json")' "latency samples: p95 of 20 samples"
 
 if [ $fail = 0 ]; then echo "SHELL RENDER: PASS"; else echo "SHELL RENDER: FAIL (artifacts in $OUT)"; exit 1; fi

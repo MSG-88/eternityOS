@@ -406,6 +406,27 @@ class TestThemeOverSocket(Base):
         self.assertEqual(r["theme"]["color"]["accent"], "#9184d9")
 
 
+class TestMonitor(Base):
+    """Slice 2 Task 5: metrics history (60 samples) and the process list behind the Monitor page."""
+
+    def test_history_and_processes(self):
+        for _ in range(3):
+            self.d.m_metrics({})
+        h = self.c.call("metrics.history")
+        self.assertTrue({"cpu", "mem_gb", "ai_tps", "latency_ms"} <= set(h["series"]))
+        self.assertGreaterEqual(len(h["series"]["cpu"]), 3)
+        self.assertLessEqual(len(h["series"]["cpu"]), 60)
+        self.assertIn("accel", h)                                  # NPU present? (never faked)
+        self.assertFalse(h["accel"])
+        procs = self.c.call("metrics.processes", limit=5)["processes"]
+        self.assertLessEqual(len(procs), 5)
+        self.assertTrue(all({"pid", "comm", "rss_mb"} <= set(p) for p in procs))
+        self.assertTrue(all(procs[i]["rss_mb"] >= procs[i + 1]["rss_mb"] for i in range(len(procs) - 1)))
+        sub = Subscriber(self.sock_path)
+        self.c.call("monitor.show")
+        sub.wait("monitor.show")
+
+
 class TestSecurity(unittest.TestCase):
     def test_rejects_other_uid(self):
         tmp = tempfile.mkdtemp()

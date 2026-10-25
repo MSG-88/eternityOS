@@ -38,3 +38,6 @@ Seg 1.0 Seg.qml
 Slider 1.0 Slider.qml
 SettingsContent 1.0 SettingsContent.qml
 SettingsWindow 1.0 SettingsWindow.qml
+Spark 1.0 Spark.qml
+MonitorContent 1.0 MonitorContent.qml
+MonitorWindow 1.0 MonitorWindow.qml

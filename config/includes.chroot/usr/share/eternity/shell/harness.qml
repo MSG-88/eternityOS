@@ -14,6 +14,7 @@ ShellRoot {
     readonly property bool presence: scenario.indexOf("presence") === 0
     readonly property bool lockScene: scenario.indexOf("lock") === 0
     readonly property bool greeterScene: scenario.indexOf("greeter") === 0
+    readonly property bool monitorScene: scenario.indexOf("monitor") === 0
     readonly property bool settingsScene: scenario.indexOf("settings") === 0
     readonly property bool notifyScene: scenario.indexOf("notify") === 0 || scenario === "osd"
     readonly property bool ringScene: scenario.indexOf("launcher") === 0 || scenario === "windowring"
@@ -40,7 +41,18 @@ ShellRoot {
                 active: root.presence
                 sourceComponent: PresenceContent { k: root.k; cards: root.designCards; animated: false; windowState: root.scenario === "presence-windows" ? "windows" : "empty" }
             }
-            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene && !root.greeterScene && !root.ringScene && !root.notifyScene && !root.settingsScene }
+            StripContent { id: strip; k: root.k; screenWidth: root.w; visible: !root.presence && !root.barScene && !root.lockScene && !root.greeterScene && !root.ringScene && !root.notifyScene && !root.settingsScene && !root.monitorScene }
+            Loader {
+                id: monitorLoader
+                anchors.fill: parent
+                active: root.monitorScene
+                sourceComponent: MonitorContent {
+                    k: root.k
+                    accel: root.scenario === "monitor-npu"
+                    metrics: root.scenario === "monitor-bare" ? ({ cpu: 18, mem_gb: 5.2, ai_tps: null, latency_ms: null, dropped_frames: 0 }) : ({ cpu: 18, mem_gb: 5.2, ai_tps: 170, latency_ms: 6, dropped_frames: 0 })
+                    history: ({ series: { cpu: [12, 18, 25, 18, 20, 18], ai_tps: [null, 150, 170, 170, 165, 170], mem_gb: [5.0, 5.1, 5.2, 5.2, 5.2, 5.2], latency_ms: [8, 6, 7, 6, 5, 6] } })
+                }
+            }
             Loader {
                 id: settingsLoader
                 anchors.fill: parent
@@ -156,6 +168,7 @@ ShellRoot {
                 if (root.lockScene) { base.items = lockLoader.item.geometry(); return Object.assign(base, lockLoader.item.flags()); }
                 if (root.greeterScene) { base.items = greeterLoader.item.geometry(); return Object.assign(base, greeterLoader.item.flags()); }
                 if (root.ringScene) { base.items = ringLoader.item.geometry(); return Object.assign(base, ringLoader.item.flags()); }
+                if (root.monitorScene) { base.items = monitorLoader.item.geometry(); return Object.assign(base, monitorLoader.item.flags()); }
                 if (root.settingsScene) { base.items = settingsLoader.item.geometry(); return Object.assign(base, settingsLoader.item.flags()); }
                 if (root.notifyScene) { base.items = Object.assign(notifyLoader.item.stackItem.geometry(), notifyLoader.item.osdItem.geometry()); return Object.assign(base, notifyLoader.item.stackItem.flags()); }
                 base.items = strip.geometry(); return base;

@@ -5,6 +5,7 @@ import Quickshell
 ShellRoot {
     Lock {}
     SettingsWindow {}
+    MonitorWindow {}
     Variants {
         model: Quickshell.screens
         delegate: Component {
