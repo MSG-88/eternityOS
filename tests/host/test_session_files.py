@@ -119,6 +119,23 @@ class TestSessionFiles(unittest.TestCase):
         smoke = read("tests/smoke.sh")
         self.assertIn("greeter/shell.qml", smoke)
 
+    def test_build14_visual_and_chain(self):
+        """Slice 2 Task 6: the Eternity visual run exercises launcher, notifications, Settings, Monitor and the greeter."""
+        r = read("tests/run-qemu-visual.sh")
+        for needle in ("e-launcher.png", "e-notify.png", "e-settings.png", "e-monitor.png", "e-greeter.png", "notify-send", "--session eternity-greetd"):
+            self.assertIn(needle, r)
+        g = read("config/bootloaders/grub-pc/grub.cfg")
+        self.assertIn("eternity.session=eternity eternity.greeter=greetd", g)
+        self.assertLess(g.index("Eternity shell)"), g.index("eternity.greeter=greetd"))
+        c = read("tools/dev/chain-build14.sh")
+        for needle in ("build14-run.log", "BUILD14 DONE", "--session eternity-greetd", "run-qemu-smoke.sh"):
+            self.assertIn(needle, c)
+        subprocess.run(["bash", "-n", os.path.join(ROOT, "tools/dev/chain-build14.sh")], check=True)
+        subprocess.run(["bash", "-n", os.path.join(ROOT, "tools/dev/start-chain14.sh")], check=True)
+        q = read("tests/qmp.py")
+        for needle in ('"Super"', '"Super-M"', '"Super-Comma"'):
+            self.assertIn(needle, q)
+
     def test_smoke_has_check_session(self):
         s = read("tests/smoke.sh")
         self.assertIn("check_session()", s)
