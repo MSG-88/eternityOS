@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Claude Code (terminal)
+Comment=Claude Code in a terminal, expert mode: runs outside Eternity's consent and undo (its own prompts decide; every tool call is still logged)
+Exec=sh -c 'cd "$HOME" && exec xfce4-terminal --title "Claude Code" -e "claude"'
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;
+Keywords=claude;agent;ai;code;

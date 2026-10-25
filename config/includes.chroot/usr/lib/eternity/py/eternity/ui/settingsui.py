@@ -63,6 +63,27 @@ class SettingsWindow(Gtk.Window):
         self.signin_row = Row("Claude account", "Eternity keeps no credentials: Claude Code holds the sign-in in your home folder. Every action still asks you first.", self.signin_btn)
         root.pack_start(self.signin_row, False, False, 0)
         root.pack_start(self.signin_status, False, False, 0)
+        # Claude Code: model and what it may do without asking
+        self.cc_model = Gtk.ComboBoxText()
+        for m in S.CLAUDE_CODE_MODELS:
+            self.cc_model.append(m, m)
+        self.cc_model.set_active_id(cfg.claude_code_model)
+        self.cc_model.connect("changed", lambda c: self.set_and_save("claude_code_model", c.get_active_id() or "sonnet"))
+        self.cc_model_row = Row("Claude model", "sonnet is fast and capable; opus for the hardest tasks; haiku for quick answers.", self.cc_model)
+        root.pack_start(self.cc_model_row, False, False, 0)
+        self.cc_allow_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.cc_allow_box.pack_start(label("WHAT CLAUDE MAY DO WITHOUT ASKING", "kicker"), False, False, 0)
+        self.cc_allow_box.pack_start(label("Everything else opens the consent dialog. sudo and pkexec are always refused.", "faint", wrap=True), False, False, 0)
+        flow = Gtk.FlowBox(); flow.set_selection_mode(Gtk.SelectionMode.NONE); flow.set_max_children_per_line(4)
+        self.cc_checks = {}
+        for tool in S.CLAUDE_CODE_TOOLS + ("mcp__eternity__search_files_by_meaning", "mcp__eternity__hardware_report", "mcp__eternity__write_note"):
+            cb = Gtk.CheckButton(label=tool.replace("mcp__eternity__", "Eternity: ").replace("_", " "))
+            cb.set_active(tool in cfg.claude_code_allow)
+            cb.connect("toggled", self.on_cc_allow)
+            self.cc_checks[tool] = cb
+            flow.add(cb)
+        self.cc_allow_box.pack_start(flow, False, False, 0)
+        root.pack_start(self.cc_allow_box, False, False, 0)
         self.ondevice = Gtk.Switch(active=cfg.on_device_only)
         self.ondevice.connect("notify::active", self.on_ondevice)
         root.pack_start(Row("Keep everything on this device", "Refuses cloud assistants even if one is selected; nothing leaves the machine.", self.ondevice), False, False, 0)
@@ -160,7 +181,7 @@ class SettingsWindow(Gtk.Window):
             w.set_visible(keyed); w.set_no_show_all(not keyed)
             if keyed:
                 w.show_all()
-        for w in (self.signin_row, self.signin_status):
+        for w in (self.signin_row, self.signin_status, self.cc_model_row, self.cc_allow_box):
             w.set_visible(signin); w.set_no_show_all(not signin)
             if signin:
                 w.show_all()
@@ -170,6 +191,11 @@ class SettingsWindow(Gtk.Window):
         if signin:
             self.refresh_signin()
         self.note.set_text(f"Changes apply instantly. Assistant: {P.PROVIDER_LABELS[self.cfg.effective_provider()]}.")
+
+    def on_cc_allow(self, *_):
+        self.cfg.claude_code_allow = [t for t, cb in self.cc_checks.items() if cb.get_active()]
+        S.save(self.cfg)
+        self.note.set_text("Allow-list saved. Applies to the next question.")
 
     def refresh_signin(self, *_):
         self.cc = P.claude_code_status()

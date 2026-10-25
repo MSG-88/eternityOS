@@ -20,7 +20,8 @@ from . import button, label, load_css, mark_image, shot
 HELP = ("Type a question or an instruction. Eternity may propose actions; you confirm each one.\n"
         "> command   runs a shell command after confirmation\n"
         "/undo       undoes the last undoable action      /clear   new conversation\n"
-        "/settings   opens Settings > Eternity             /local   switch to the on-device model for this session")
+        "/settings   opens Settings > Eternity             /local   switch to the on-device model for this session\n"
+        "/sessions   earlier Claude sessions              /resume N   continue one      /model sonnet|opus|haiku")
 
 
 class ConsentDialog(Gtk.Dialog):
@@ -213,6 +214,32 @@ class AskWindow(Gtk.Window):
             self.cfg.on_device_only = True
             self.agent = None
             self.status.set_text(P.PROVIDER_LABELS["local"] + "  ·  this session")
+        elif cmd == "/sessions":
+            rows = P.claude_code_sessions(10)
+            self.add_bubble("\n".join(f"{i + 1}. {r['started']}  {r['first_question']}" for i, r in enumerate(rows)) or "No Claude sessions yet.", "eternity")
+        elif cmd == "/resume":
+            rows = P.claude_code_sessions(10)
+            try:
+                chosen = rows[int(text.split()[1]) - 1]
+            except (IndexError, ValueError):
+                self.add_bubble("Usage: /resume N (see /sessions).", "eternity")
+                return
+            prov = self.ensure_agent().provider
+            if hasattr(prov, "resume"):
+                prov.resume(chosen["session_id"])
+                self.ensure_agent().reset()
+                self.add_bubble(f"Continuing: {chosen['first_question']}", "eternity")
+            else:
+                self.add_bubble("Sessions exist only for Claude (your Claude account).", "eternity")
+        elif cmd == "/model":
+            parts = text.split()
+            if len(parts) == 2 and parts[1] in S.CLAUDE_CODE_MODELS:
+                self.cfg.claude_code_model = parts[1]
+                S.save(self.cfg)
+                self.agent = None
+                self.add_bubble(f"Claude model: {parts[1]}.", "eternity")
+            else:
+                self.add_bubble("Usage: /model sonnet | opus | haiku", "eternity")
         else:
             self.add_bubble(f"Unknown command {cmd}. {HELP}", "eternity")
 

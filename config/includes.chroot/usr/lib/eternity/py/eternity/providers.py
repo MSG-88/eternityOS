@@ -36,6 +36,7 @@ class Metrics:
     provider: str = ""
     model: str = ""
     on_device: bool = True
+    cost_usd: Optional[float] = None
 
     def readout(self) -> str:
         parts = ["on device" if self.on_device else f"{self.provider}"]
@@ -43,6 +44,8 @@ class Metrics:
             parts.append(f"first token {self.first_token_ms} ms")
         if self.tokens_per_s:
             parts.append(f"~{self.tokens_per_s:.0f} tok/s")
+        if self.cost_usd is not None:
+            parts.append(f"${self.cost_usd:.2f}")
         return "  ·  ".join(parts)
 
 
@@ -395,12 +398,20 @@ class ClaudeCodeProvider(Provider):
         self.mcp_command = mcp_command or os.environ.get("ETERNITY_MCP_BIN") or shutil.which("eternity-mcp") or "eternity-mcp"
         self.max_turns = max_turns
         self.session_id: Optional[str] = None
+        self._announced = False      # session recorded in sessions.json
 
     def allowed_tools(self) -> List[str]:
-        if self.cfg.trust_level < 1:
-            return []
-        own = [f"mcp__eternity__{t}" for t in ("system_info", "list_recent_files", "find_files", "search_files_by_meaning", "hardware_report")]
-        return list(self.READ_ONLY_BUILTINS) + own
+        """Pre-allowed tools: the user's explicit allow-list plus, at trust level 1, the read-only set."""
+        out: List[str] = list(getattr(self.cfg, "claude_code_allow", []) or [])
+        if self.cfg.trust_level >= 1:
+            own = [f"mcp__eternity__{t}" for t in ("system_info", "list_recent_files", "find_files", "search_files_by_meaning", "hardware_report")]
+            out += [t for t in list(self.READ_ONLY_BUILTINS) + own if t not in out]
+        return out
+
+    def resume(self, session_id: Optional[str]) -> None:
+        """Continue an earlier Claude Code session (from claude_code_sessions()) on the next ask."""
+        self.session_id = session_id or None
+        self._announced = bool(session_id)
 
     def command(self, prompt: str, system: Optional[str]) -> List[str]:
         cmd = [self.binary or "claude", "-p", prompt, "--output-format", "stream-json", "--verbose", "--include-partial-messages",
@@ -489,6 +500,14 @@ class ClaudeCodeProvider(Provider):
                 usage = ev.get("usage") or {}
                 m.tokens = int(usage.get("output_tokens") or 0)
                 m.total_ms = int(ev.get("duration_ms") or (time.monotonic() - t0) * 1000)
+                if ev.get("total_cost_usd") is not None:
+                    try:
+                        m.cost_usd = float(ev["total_cost_usd"])
+                    except (TypeError, ValueError):
+                        pass
+                if self.session_id and not self._announced:
+                    _remember_session(self.session_id, prompt)
+                    self._announced = True
                 if ev.get("is_error"):
                     errs = ev.get("errors") or [ev.get("result") or ev.get("subtype") or "error"]
                     raise ProviderError("Claude Code: " + "; ".join(str(x) for x in errs)[:300])
@@ -506,6 +525,28 @@ class ClaudeCodeProvider(Provider):
         gen_ms = max(1, m.total_ms - (m.first_token_ms or 0))
         m.tokens_per_s = m.tokens / (gen_ms / 1000)
         yield ("done", m)
+
+
+def _sessions_path() -> str:
+    return os.path.join(S.state_dir(), "claude-sessions.json")
+
+
+def claude_code_sessions(limit: int = 20) -> List[dict]:
+    """Earlier Claude Code sessions started from Eternity, newest first:
+    [{"session_id", "started", "first_question"}]."""
+    try:
+        with open(_sessions_path(), encoding="utf-8") as f:
+            rows = json.load(f)
+    except (OSError, ValueError):
+        rows = []
+    return list(reversed(rows))[:limit]
+
+
+def _remember_session(session_id: str, first_question: str) -> None:
+    rows = list(reversed(claude_code_sessions(limit=200)))
+    rows = [r for r in rows if r.get("session_id") != session_id]
+    rows.append({"session_id": session_id, "started": time.strftime("%Y-%m-%d %H:%M"), "first_question": first_question[:120]})
+    S._atomic_write(_sessions_path(), json.dumps(rows[-100:], ensure_ascii=False, indent=1) + "\n", 0o600)
 
 
 def claude_code_status(binary: Optional[str] = None, timeout: float = 8.0) -> dict:

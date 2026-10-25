@@ -15,6 +15,9 @@ from typing import Dict, List, Optional
 PROVIDERS = ("local", "claude_code", "anthropic", "openai")
 # Providers that bring their own sign-in (no API key in our keyring)
 SIGNIN_PROVIDERS = ("claude_code",)
+CLAUDE_CODE_MODELS = ("sonnet", "opus", "haiku")
+# Tools Claude Code brings that the user may pre-allow (Settings > Assistant); the rest always ask
+CLAUDE_CODE_TOOLS = ("Read", "Glob", "Grep", "WebSearch", "WebFetch", "Edit", "Write", "Bash")
 VERBOSITY = ("brief", "normal", "detailed")
 VOICES = ("off", "calm", "bright")
 UNLOCK_METHODS = ("passphrase", "pin", "face", "voice")
@@ -36,7 +39,8 @@ def state_dir() -> str:
 class Settings:
     name: str = ""                       # how Eternity addresses the user
     provider: str = "local"              # local | claude_code | anthropic | openai
-    claude_code_model: str = "sonnet"    # alias passed to `claude --model`
+    claude_code_model: str = "sonnet"    # alias passed to `claude --model` (sonnet | opus | haiku)
+    claude_code_allow: List[str] = field(default_factory=list)   # tools Claude Code may use without asking (plus the trust-level set)
     anthropic_model: str = "claude-sonnet-5-5"
     openai_model: str = "gpt-5.1"
     local_model: str = "auto"            # auto | default | small
@@ -56,6 +60,9 @@ class Settings:
             self.provider = "local"
         if self.verbosity not in VERBOSITY:
             self.verbosity = "normal"
+        if self.claude_code_model not in CLAUDE_CODE_MODELS:
+            self.claude_code_model = "sonnet"
+        self.claude_code_allow = [t for t in (self.claude_code_allow or []) if isinstance(t, str) and t]
         if self.voice not in VOICES:
             self.voice = "off"
         self.unlock_methods = [m for m in self.unlock_methods if m in UNLOCK_METHODS] or ["passphrase"]

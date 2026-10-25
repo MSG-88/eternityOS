@@ -136,7 +136,7 @@ class Daemon:
             "settings.get": self.m_settings_get, "settings.set": self.m_settings_set, "ask.start": self.m_ask_start,
             "ask.cancel": self.m_ask_cancel, "ask.undo": self.m_ask_undo, "ask.show": self.m_ask_show, "consent.reply": self.m_consent_reply,
             "consent.ask": self.m_consent_ask, "session.lock": self.m_lock, "session.lock_info": self.m_lock_info, "pin.verify": self.m_pin,
-            "hw.summary": self.m_hw, "launcher.index": self.m_launcher,
+            "hw.summary": self.m_hw, "launcher.index": self.m_launcher, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
         }
 
     # -- transport ------------------------------------------------------------------
@@ -452,6 +452,18 @@ class Daemon:
     def m_pin(self, params: dict) -> dict:
         from .ui.firstrun import verify_pin
         return {"ok": verify_pin(str(params.get("pin", "")))}
+
+    def m_claude_sessions(self, params: dict) -> dict:
+        return {"sessions": P.claude_code_sessions(int(params.get("limit", 20)))}
+
+    def m_claude_resume(self, params: dict) -> dict:
+        agent = self._make_agent()
+        prov = agent.provider
+        if not hasattr(prov, "resume"):
+            raise DaemonError("the current assistant has no sessions to resume")
+        prov.resume(str(params.get("session_id", "")) or None)
+        agent.reset()
+        return {"session_id": prov.session_id}
 
     def m_hw(self, params: dict) -> dict:
         from . import hw

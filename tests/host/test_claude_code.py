@@ -123,7 +123,56 @@ class TestProvider(unittest.TestCase):
         self.assertEqual(agent.history[-1], {"role": "assistant", "content": "Saved the note."})
 
 
+@unittest.skipUnless(sys.platform.startswith("linux"), "needs /bin/sh")
+class TestDeeper(unittest.TestCase):
+    """Allow-list, model, cost readout and sessions."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        os.environ["HOME"] = self.tmp
+        os.environ["XDG_STATE_HOME"] = os.path.join(self.tmp, ".local", "state")
+        self.bin = os.path.join(self.tmp, "claude")
+
+    def test_allow_list_and_model(self):
+        log = fake_claude(self.bin, EVENTS)
+        cfg = S.Settings(trust_level=0, claude_code_model="opus", claude_code_allow=["Edit", "mcp__eternity__write_note"])
+        prov = P.ClaudeCodeProvider(cfg.claude_code_model, cfg=cfg, binary=self.bin)
+        list(prov.stream([{"role": "user", "content": "hi"}]))
+        args = open(log).read().splitlines()
+        self.assertEqual(args[args.index("--model") + 1], "opus")
+        allowed = args[args.index("--allowedTools") + 1].split(",")
+        self.assertEqual(allowed, ["Edit", "mcp__eternity__write_note"])
+
+    def test_cost_readout_and_sessions(self):
+        ev = list(EVENTS)
+        ev[-1] = dict(ev[-1], total_cost_usd=0.0123)
+        fake_claude(self.bin, ev)
+        prov = P.ClaudeCodeProvider("sonnet", cfg=S.Settings(), binary=self.bin)
+        events = list(prov.stream([{"role": "user", "content": "save a note about the review"}]))
+        m = events[-1][1]
+        self.assertAlmostEqual(m.cost_usd, 0.0123)
+        self.assertIn("$0.01", m.readout())
+        sessions = P.claude_code_sessions()
+        self.assertEqual(sessions[0]["session_id"], "sess-1")
+        self.assertEqual(sessions[0]["first_question"], "save a note about the review")
+        self.assertIn("started", sessions[0])
+
+    def test_resume_chosen_session(self):
+        log = fake_claude(self.bin, EVENTS)
+        prov = P.ClaudeCodeProvider("sonnet", cfg=S.Settings(), binary=self.bin)
+        prov.resume("sess-old")
+        list(prov.stream([{"role": "user", "content": "continue"}]))
+        args = open(log).read().splitlines()
+        self.assertEqual(args[args.index("--resume") + 1], "sess-old")
+
+
 class TestSettings(unittest.TestCase):
+    def test_model_and_allow_validation(self):
+        self.assertEqual(S.Settings(claude_code_model="gpt").validate().claude_code_model, "sonnet")
+        self.assertEqual(S.Settings(claude_code_model="haiku").validate().claude_code_model, "haiku")
+        self.assertEqual(S.Settings().claude_code_allow, [])
+        self.assertEqual(S.Settings(claude_code_allow=["Edit", 7, "Bash"]).validate().claude_code_allow, ["Edit", "Bash"])
+
     def test_provider_accepted(self):
         s = S.Settings(provider="claude_code", on_device_only=False).validate()
         self.assertEqual(s.effective_provider(), "claude_code")

@@ -1,0 +1,6 @@
+#!/bin/sh
+# PreToolUse hook for the interactive Claude Code tile ("expert mode"): every tool call is
+# appended to Eternity's audit log (via "claude-code-terminal"); privilege escalation is refused
+# (exit 2 = block, the message goes back to Claude). Never blocks on bad input. The hook's stdin
+# carries the tool call, so the logic lives in claude_hook.py (a heredoc would steal stdin).
+exec /usr/bin/python3 "$(dirname "$0")/claude_hook.py"
