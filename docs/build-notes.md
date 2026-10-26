@@ -634,3 +634,45 @@ template, dynamic 2-6 GB, 4 vCPU): greeter in 60 s instead of 7 min. Results, sc
   nothing while running on the software scene graph; the Möbius mark now steps a clipped atlas).
 - Still from build 13 and expected: the splash boxes (fixed in 2b300c3) and the session crash on
   the QEMU virtio GPU path (fixed in 18a866b); both verify with build 14.
+
+## Build 15 (2026-10-26, overnight): the OS grows with the user, voice input, a faster local model
+
+Phase 1 on `phase1`. Everything below is covered by host tests (`python3 -m unittest discover -s
+tests/host`: 167 PASS in WSL) and the offscreen shell render (`tests/host/test_shell_render.sh`:
+SHELL RENDER: PASS), and was verified live on the Hyper-V installed system over `tools/dev/e8pull.sh`
+(screenshots `tests/out/hyperv/`).
+
+- **Jarvis-style answers on the right, the presence slides left.** The Ask-bar answer is plain text
+  down the right-hand column (x 1180, no box); while an answer is on screen `Ask.answering` slides the
+  whole presence left (centre 640) and shrinks the orbit to 0.75 so no card overlaps the text
+  (`PresenceContent.qml`, `Ask.qml`, `BarContent.qml`). Verified: a live Claude answer about the
+  hardware renders in the right column with the presence shifted left.
+- **The assistant knows which session it is in.** `agent.os_knowledge()` now names the session: in the
+  Eternity session it says Hyprland (+ version from `Hyprland --version`) with the Quickshell shell on
+  Wayland and points tool use at `hyprctl`; only the classic session mentions xfwm4. This stopped Claude
+  hunting for an X11 window manager and reporting xfwm4 under the Eternity session.
+- **Eternity learns from the user (`memory.py`).** Facts the user states ("remember that ...", "my name
+  is ...", "I prefer ..."), the questions they ask and the tools they use are kept in
+  `~/.local/state/eternity/memory.json` on this device only and fed into the system prompt under "What
+  you know about this user". Ask bar: `/remember`, `/forget`, `/memory`; daemon:
+  `memory.list/remember/forget`; Settings: "Eternity learns from you" (shell and GTK), off = no
+  observation. Verified: "Remember that I am building Eternity 08 and I prefer short answers" then "What
+  do you know about me" lists both facts and the earlier question.
+- **Voice input, push-to-talk on Super+V (`eternity-voice`, `voice.py`).** PipeWire capture
+  (`pw-record`) until 0.8 s of silence, speech to text on this device with whisper.cpp
+  (`whisper-cli` built from v1.9.5 in hook `0520-whisper-cpp.hook.chroot`; `ggml-small.en-q5_1`
+  bundled as model role `stt` in `ai/models.manifest`). Direct commands skip the model ("open the
+  terminal", "lock", "open settings", "volume up/down", "mute", "screenshot", "home"); anything else is
+  asked through the daemon. The Ask bar narrates Listening / Transcribing / the heard text.
+  `togglefloating` moved to Super+Shift+V. Tested by unit (`test_voice.py`, `test_daemon.py`); a live
+  mic demo was not possible on the VM (no audio input device).
+- **The local model is tuned for a laptop CPU (`providers.llama_server_args`).** llama-server now runs
+  generation on the physical-core count (SMT siblings only slow the memory-bound decode), batches
+  prompts across every logical thread, enables flash attention, and keeps the KV cache in q8_0 (half the
+  memory at 4k context). `physical_cores()` reads the sysfs core ids.
+- **The shell survives a daemon restart.** `Daemon.qml` reconnects by creating a fresh `Socket` every
+  2 s while the daemon is away (setting `connected` on the dead socket never reconnected; after a daemon
+  restart the bar and cards stayed dead on the installed system). Verified: kill the daemon, its
+  supervisor restarts it, the bar is back within 12 s. `tools/dev/e8restart.sh` restarts the daemon
+  inside the session (the daemon is `python3 -c "...from eternity import daemon..."` under
+  `eternity-supervise`; `e8pull.sh` calls it through `hyprctl dispatch exec` so it gets the session env).

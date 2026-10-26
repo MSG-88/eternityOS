@@ -12,7 +12,11 @@ Claude / ChatGPT with the user's own API key in the keyring), ✔ provider layer
 `eternity.providers` (local llama-server on demand, Anthropic, OpenAI; streaming, tool calls,
 first-token and tok/s), ✔ `eternity.agent` with the OS-knowledge system prompt and tools
 (system info, files, apps, volume, notes, settings, shell, power, search by meaning),
-✔ `eternity-ask` command bar (Super+Space). ○ Subscription sign-in: the providers offer no
+✔ `eternity-ask` command bar (Super+Space). ✔ Build 15: the assistant grows with the user
+(`eternity.memory`, on this device only) and takes spoken input (`eternity.voice`, Super+V,
+whisper.cpp on device); the local model is tuned for a laptop CPU
+(`providers.llama_server_args`: physical-core generation threads, flash attention, q8_0 KV cache).
+○ Subscription sign-in: the providers offer no
 OAuth for third-party apps, so keys are pasted (link to each console shown).
 
 - Subscription-based agents (Claude, ChatGPT) are integrated into the OS next to the
@@ -127,7 +131,10 @@ Recorded verbatim in substance; status marks as above. Plan: `docs/superpowers/s
   session, can run there; NVMe behind Intel VMD (`vmd` is in the initramfs); disk full, so live
   sessions only until Windows frees space; the Self-test entry is silent on it (no serial port).
 - **UI/UX "a mere copy of Ubuntu".** Expected: a completely unique, high-tech look with its
-  own navigation. ◐ Build 13 (slice 1): the Eternity session on Hyprland with the Quickshell shell
+  own navigation. ◐ Build 15: Jarvis-style answers run as plain text down the right-hand column
+  while the presence slides left and the orbit shrinks so nothing overlaps the text; voice input
+  (push-to-talk Super+V) with the Ask bar narrating Listening / Transcribing / the heard text.
+  ◐ Build 13 (slice 1): the Eternity session on Hyprland with the Quickshell shell
   (strip, presence, Ask bar, consent, lock) at the design's geometry, 125 % scale, next to XFCE.
   Remaining phase 3: leave the XFCE/X11 desktop for a Wayland session (Hyprland from
   trixie-backports) with an Eternity shell written in GTK 4 + layer-shell that renders the
