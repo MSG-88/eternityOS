@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "config", "includes.chroot", "usr", "lib", "eternity", "py"))
@@ -143,6 +144,52 @@ class ActionsTest(unittest.TestCase):
         listed = b.execute("list_routines", {})
         self.assertTrue(listed.ok)
         self.assertIn("focus", json.dumps(listed.data).lower())
+
+    def test_window_control_rejects_unknown_and_needs_hyprland(self):
+        self.assertFalse(A.t_window_control({"action": "explode"}).ok)
+        with unittest.mock.patch.object(A.shutil, "which", return_value=None):
+            self.assertFalse(A.t_window_control({"action": "close"}).ok)
+        with unittest.mock.patch.object(A.shutil, "which", return_value="/usr/bin/hyprctl"):
+            with unittest.mock.patch.object(A.subprocess, "run") as run:
+                r = A.t_window_control({"action": "next_workspace"})
+                self.assertTrue(r.ok)
+                self.assertEqual(run.call_args[0][0], ["hyprctl", "dispatch", "workspace", "e+1"])
+
+    def test_set_brightness_clamps_and_undoes(self):
+        calls = []
+
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+
+            class R:
+                stdout = "120" + chr(10) if cmd[:2] == ["brightnessctl", "get"] else "240" + chr(10)
+            return R()
+
+        with unittest.mock.patch.object(A.shutil, "which", return_value="/usr/bin/brightnessctl"):
+            with unittest.mock.patch.object(A.subprocess, "run", side_effect=fake_run):
+                r = A.t_set_brightness({"percent": 999})
+                self.assertTrue(r.ok)
+                self.assertIn(["brightnessctl", "set", "100%"], calls)
+                self.assertEqual(r.undo_token, {"percent": 50})
+
+    def test_clipboard_copy_validates_and_runs(self):
+        self.assertFalse(A.t_clipboard_copy({"text": ""}).ok)
+        with unittest.mock.patch.object(A.shutil, "which", return_value="/usr/bin/wl-copy"):
+            with unittest.mock.patch.object(A.subprocess, "run") as run:
+                r = A.t_clipboard_copy({"text": "hello"})
+                self.assertTrue(r.ok)
+                self.assertEqual(run.call_args[0][0], ["wl-copy"])
+
+    def test_remind_validates_time_and_schedules(self):
+        self.assertFalse(A.t_remind({"text": "x", "minutes": 0}).ok)
+        self.assertFalse(A.t_remind({"text": "", "minutes": 5}).ok)
+        self.assertFalse(A.t_remind({"text": "x", "minutes": 9999}).ok)
+        with unittest.mock.patch.object(A.shutil, "which", return_value="/usr/bin/x"):
+            with unittest.mock.patch.object(A.subprocess, "run") as run:
+                r = A.t_remind({"text": "stretch", "minutes": 10})
+                self.assertTrue(r.ok)
+                self.assertEqual(run.call_args[0][0][0], "systemd-run")
+                self.assertIn("--on-active=600", run.call_args[0][0])
 
     def test_describe_call(self):
         t = A.default_tools()[0]

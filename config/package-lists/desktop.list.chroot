@@ -78,6 +78,7 @@ qt6-wayland
 wl-clipboard
 grim
 slurp
+libnotify-bin
 fonts-jetbrains-mono
 # test harness support (XFCE Classic session): raise/minimize windows by name from a typed command
 xdotool

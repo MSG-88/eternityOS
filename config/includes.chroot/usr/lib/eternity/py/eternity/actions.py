@@ -335,6 +335,88 @@ def t_hardware_report(args: dict) -> ActionResult:
     return ActionResult(True, head, data)
 
 
+WINDOW_ACTIONS = {
+    "close": ["dispatch", "killactive"],
+    "fullscreen": ["dispatch", "fullscreen", "0"],
+    "maximize": ["dispatch", "fullscreen", "1"],
+    "float": ["dispatch", "togglefloating"],
+    "next_workspace": ["dispatch", "workspace", "e+1"],
+    "prev_workspace": ["dispatch", "workspace", "e-1"],
+    "cycle": ["dispatch", "cyclenext"],
+    "center": ["dispatch", "centerwindow"],
+}
+
+
+def t_window_control(args: dict) -> ActionResult:
+    action = str(args.get("action", "")).strip()
+    cmd = WINDOW_ACTIONS.get(action)
+    if not cmd:
+        return ActionResult(False, "action must be one of: " + ", ".join(WINDOW_ACTIONS))
+    if not shutil.which("hyprctl"):
+        return ActionResult(False, "window control needs the Eternity (Hyprland) session")
+    subprocess.run(["hyprctl", *cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return ActionResult(True, f"window: {action.replace('_', ' ')}")
+
+
+def _brightness_get():
+    try:
+        cur = int(subprocess.run(["brightnessctl", "get"], capture_output=True, text=True).stdout.strip())
+        mx = int(subprocess.run(["brightnessctl", "max"], capture_output=True, text=True).stdout.strip())
+        return round(cur * 100 / mx) if mx else None
+    except (OSError, ValueError):
+        return None
+
+
+def t_set_brightness(args: dict) -> ActionResult:
+    if not shutil.which("brightnessctl"):
+        return ActionResult(False, "no brightness control (brightnessctl) on this machine")
+    pct = max(5, min(100, int(args.get("percent", 60))))
+    before = _brightness_get()
+    subprocess.run(["brightnessctl", "set", f"{pct}%"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return ActionResult(True, f"screen brightness {pct}%", {"before": before},
+                        undo_token={"percent": before} if before is not None else None)
+
+
+def u_set_brightness(args: dict, result: ActionResult) -> str:
+    pct = (result.undo_token or {}).get("percent")
+    if pct is None:
+        return "nothing to undo"
+    subprocess.run(["brightnessctl", "set", f"{int(pct)}%"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return f"brightness back to {int(pct)}%"
+
+
+def t_clipboard_copy(args: dict) -> ActionResult:
+    text = str(args.get("text", ""))
+    if not text:
+        return ActionResult(False, "nothing to copy")
+    if not shutil.which("wl-copy"):
+        return ActionResult(False, "no clipboard tool (wl-clipboard) in this session")
+    subprocess.run(["wl-copy"], input=text, text=True)
+    return ActionResult(True, f"copied {len(text)} characters to the clipboard")
+
+
+def t_remind(args: dict) -> ActionResult:
+    text = str(args.get("text", "")).strip()
+    minutes = args.get("minutes", 0)
+    try:
+        minutes = float(minutes)
+    except (TypeError, ValueError):
+        return ActionResult(False, "minutes must be a number")
+    if not text or minutes <= 0 or minutes > 1440:
+        return ActionResult(False, "give a reminder text and when, in minutes (up to 1440)")
+    if not shutil.which("systemd-run"):
+        return ActionResult(False, "reminders need systemd (not available here)")
+    secs = int(minutes * 60)
+    body = ["notify-send", "-a", "Eternity", "-u", "normal", "Reminder", text] if shutil.which("notify-send") \
+        else ["eternity-osd", "reminder", text] if shutil.which("eternity-osd") else None
+    if body is None:
+        return ActionResult(False, "no way to show the reminder (notify-send/eternity-osd missing)")
+    subprocess.run(["systemd-run", "--user", "--quiet", f"--on-active={secs}", "--timer-property=AccuracySec=1s", *body],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    when = f"{int(minutes)} min" if minutes >= 1 else f"{secs} s"
+    return ActionResult(True, f"reminder set for {when}: “{text}”")
+
+
 def t_define_routine(args: dict) -> ActionResult:
     name = str(args.get("name", "")).strip()
     steps = args.get("steps")
@@ -386,6 +468,13 @@ def default_tools() -> List[Tool]:
              obj({"command": {"type": "string"}}, ["command"]), t_run_command, RISK_DANGEROUS),
         Tool("power", "Lock the screen, suspend, reboot or power off.",
              obj({"action": {"type": "string", "enum": ["lock", "suspend", "reboot", "poweroff"]}}, ["action"]), t_power, RISK_DANGEROUS),
+        Tool("window_control", "Manage the focused window or workspace in the Eternity session: close, fullscreen, maximize, float, center, next_workspace, prev_workspace, cycle.",
+             obj({"action": {"type": "string", "enum": list(WINDOW_ACTIONS.keys())}}, ["action"]), t_window_control, RISK_CHANGE),
+        Tool("set_brightness", "Set the screen brightness in percent (5-100).", obj({"percent": {"type": "integer"}}, ["percent"]),
+             t_set_brightness, RISK_CHANGE, u_set_brightness),
+        Tool("clipboard_copy", "Put text on the clipboard so the user can paste it.", obj({"text": {"type": "string"}}, ["text"]), t_clipboard_copy, RISK_CHANGE),
+        Tool("remind", "Remind the user after a delay (shows a notification). Give the text and when, in minutes.",
+             obj({"text": {"type": "string"}, "minutes": {"type": "number"}}, ["text", "minutes"]), t_remind, RISK_CHANGE),
         Tool("define_routine", "Save a named routine the user can run later by name or voice. steps is a list of {tool, args}. Use when the user describes a repeatable task ('my morning routine is ...', 'whenever I start work, ...').",
              obj({"name": {"type": "string"}, "steps": {"type": "array", "items": {"type": "object"}}, "description": {"type": "string"}}, ["name", "steps"]), t_define_routine, RISK_CHANGE),
         Tool("list_routines", "List the user's saved routines and what they do.", obj({}), t_list_routines, RISK_READ),
