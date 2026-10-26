@@ -697,3 +697,30 @@ small offline image via **piper**:
 
 Other trending repos were dev-time Claude Code skills (hallmark, impeccable, cloudflare
 security-audit, claude-seo) or unrelated (cindy, microduck, TradingAgents, thinkrail, coolify).
+
+## Build 16 + the deep-AI batch (2026-10-26, 8-hour autonomous session)
+
+Owner handed full control for 8 hours with three priorities: the ASUS must boot, ship TTS, and make
+the AI integration deep / the OS grow (Jarvis that runs tasks from commands).
+
+**Build 16 (built from the repo at ~07:08) contains:**
+- **The ASUS boot fix.** The ROG lands in GRUB then a black screen because the RTX 5080 (Blackwell
+  GB203) drives the panel and nouveau needs `nvidia/gb203/gsp/*-570.144.bin`, which trixie's
+  firmware-nvidia-graphics (ga10x/ad10x) lacks. Pinned `firmware-nvidia-graphics` from
+  trixie-backports (gb203) in `eternity-backports.pref.chroot` and added it to the base list. The
+  nomodeset "safe graphics" GRUB entry stays as the fallback. (The ISO already boots under UEFI +
+  Secure Boot in Hyper-V Gen 2, so the EFI chain was never the problem — it was the GPU firmware and,
+  separately, Rufus ISO-mode writing; see tools/windows.)
+- **Voice output / TTS** (piper), committed just before the build.
+- `tools/windows/write-eternity-usb.ps1` (raw/DD write from Windows) + `tools/windows/README.md`
+  (why Rufus ISO-mode fails, one-time boot menu, GPU Eco, install to internal disk or external USB SSD).
+
+**The deep-AI batch (committed after build 16 started, so it ships in build 17):**
+- **Routines** (`routines.py`): named task sequences the assistant builds from the user's words and
+  runs on command/voice; every step still consented at the trust level. Tools define_routine /
+  list_routines / forget_routine / run_routine; surfaced in the system prompt and as a home-screen
+  "Routines" card; ask-bar `/routines`, `/run <name>`.
+- **Operational tools** so the assistant drives the machine: window_control (hyprctl),
+  set_brightness (undoable), clipboard_copy, remind (systemd-run + notify-send).
+- **Voice everywhere**: `/say <text>` and the daemon `voice.say` (also a mic-free way to hear the voice).
+- Host suite 189 green, shell render PASS throughout.
