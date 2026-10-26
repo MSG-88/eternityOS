@@ -17,6 +17,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
+from . import routines as RT
 from . import settings as S
 
 RISK_READ, RISK_CHANGE, RISK_DANGEROUS = "read", "change", "dangerous"
@@ -334,6 +335,32 @@ def t_hardware_report(args: dict) -> ActionResult:
     return ActionResult(True, head, data)
 
 
+def t_define_routine(args: dict) -> ActionResult:
+    name = str(args.get("name", "")).strip()
+    steps = args.get("steps")
+    desc = str(args.get("description", ""))
+    try:
+        item = RT.Routines().define(name, steps, desc)
+    except RT.RoutineError as e:
+        return ActionResult(False, str(e))
+    return ActionResult(True, f"saved the routine '{item['name']}' ({len(item['steps'])} steps); say “run {item['name']}” to use it",
+                        {"name": item["name"], "steps": len(item["steps"])})
+
+
+def t_list_routines(args: dict) -> ActionResult:
+    items = RT.Routines().list()
+    if not items:
+        return ActionResult(True, "no routines saved yet", {"routines": []})
+    names = ", ".join(x["name"] for x in items)
+    return ActionResult(True, f"routines: {names}", {"routines": items})
+
+
+def t_forget_routine(args: dict) -> ActionResult:
+    name = str(args.get("name", "")).strip()
+    n = RT.Routines().forget(name)
+    return ActionResult(n > 0, f"forgot '{name}'" if n else f"no routine called '{name}'")
+
+
 def default_tools() -> List[Tool]:
     obj = lambda props, req=(): {"type": "object", "properties": props, "required": list(req)}  # noqa: E731
     return [
@@ -359,6 +386,10 @@ def default_tools() -> List[Tool]:
              obj({"command": {"type": "string"}}, ["command"]), t_run_command, RISK_DANGEROUS),
         Tool("power", "Lock the screen, suspend, reboot or power off.",
              obj({"action": {"type": "string", "enum": ["lock", "suspend", "reboot", "poweroff"]}}, ["action"]), t_power, RISK_DANGEROUS),
+        Tool("define_routine", "Save a named routine the user can run later by name or voice. steps is a list of {tool, args}. Use when the user describes a repeatable task ('my morning routine is ...', 'whenever I start work, ...').",
+             obj({"name": {"type": "string"}, "steps": {"type": "array", "items": {"type": "object"}}, "description": {"type": "string"}}, ["name", "steps"]), t_define_routine, RISK_CHANGE),
+        Tool("list_routines", "List the user's saved routines and what they do.", obj({}), t_list_routines, RISK_READ),
+        Tool("forget_routine", "Delete a saved routine by name.", obj({"name": {"type": "string"}}, ["name"]), t_forget_routine, RISK_CHANGE),
     ]
 
 
@@ -381,7 +412,30 @@ class ActionBroker:
         self.cfg = cfg or S.load()
         self.audit = audit or Audit()
         self.tools: Dict[str, Tool] = {t.name: t for t in (tools or default_tools())}
+        # run_routine orchestrates other tools, so it is bound to this broker (each step still goes
+        # through execute(): consent at the user's trust level, audit, undo). Read risk: the routine
+        # itself asks nothing; its steps carry their own risk.
+        self.tools["run_routine"] = Tool(
+            "run_routine", "Run a saved routine by name (see list_routines). Each step is confirmed by its own rule.",
+            {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
+            self._run_routine, RISK_READ)
         self.history: List[Executed] = []
+
+    def _run_routine(self, args: dict) -> ActionResult:
+        name = str(args.get("name", "")).strip()
+        routine = RT.Routines().get(name)
+        if not routine:
+            return ActionResult(False, f"no routine called '{name}' (list_routines shows them)")
+        done, failed = [], []
+        for step in routine["steps"]:
+            res = self.execute(str(step.get("tool", "")), step.get("args") or {})
+            (done if res.ok else failed).append(f"{step.get('tool')}: {res.summary}")
+            if not res.ok and step.get("tool") not in self.tools:
+                break
+        summary = f"ran '{routine['name']}': {len(done)}/{len(routine['steps'])} steps ok"
+        if failed:
+            summary += f"; issues: {'; '.join(failed)[:300]}"
+        return ActionResult(bool(done) and not failed, summary, {"done": done, "failed": failed})
 
     def schemas(self) -> List[dict]:
         return [t.schema() for t in self.tools.values()]

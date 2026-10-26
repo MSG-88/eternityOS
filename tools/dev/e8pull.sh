@@ -16,7 +16,7 @@ pull() {   # pull <path-under-root>
     fi
     rm -f "$tmp"
 }
-for f in cards.py providers.py settings.py actions.py mcp.py daemon.py agent.py theme.py find.py hw.py launcher_index.py memory.py voice.py; do
+for f in cards.py providers.py settings.py actions.py mcp.py daemon.py agent.py theme.py find.py hw.py launcher_index.py memory.py voice.py routines.py; do
     curl -fsS --head "$BASE/usr/lib/eternity/py/eternity/$f" >/dev/null 2>&1 && pull "usr/lib/eternity/py/eternity/$f"
 done
 for f in $(curl -fsS "$BASE/usr/share/eternity/shell/" | grep -oE 'href="[A-Za-z0-9_]+\.qml"' | cut -d'"' -f2 | sort -u); do

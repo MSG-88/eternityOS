@@ -97,8 +97,15 @@ def system_prompt(cfg: S.Settings, memory: Optional["M.Memory"] = None) -> str:
              if cfg.agent_mode else "You cannot run actions in this session; explain what the user can do.")
     known = memory.prompt_section() if memory is not None else ""
     learned = f"\n\nWhat you know about this user (learned on this device, never sent anywhere else):\n{known}" if known else ""
+    routines = ""
+    try:
+        from . import routines as RT
+        rsec = RT.Routines().prompt_section()
+        routines = f"\n\n{rsec}" if rsec else ""
+    except Exception:  # noqa: BLE001  (routines are a convenience, never block an answer)
+        routines = ""
     return (f"You are Eternity, the assistant built into Eternity 08, a personal operating system.{name} "
-            f"{style} Be warm and direct, no filler. {agent}\n\nAbout this machine and OS:\n{os_knowledge()}{learned}")
+            f"{style} Be warm and direct, no filler. {agent}\n\nAbout this machine and OS:\n{os_knowledge()}{learned}{routines}")
 
 
 class Agent:

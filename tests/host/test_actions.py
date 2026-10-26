@@ -112,6 +112,38 @@ class ActionsTest(unittest.TestCase):
         self.assertEqual(S.load().verbosity, "normal")
         self.assertFalse(b.execute("set_setting", {"key": "telemetry", "value": True}).ok)
 
+    def test_run_routine_executes_each_step_with_consent(self):
+        ran = []
+        obj = {"type": "object", "properties": {}, "required": []}
+        fakes = [
+            A.Tool("step_a", "a", obj, lambda args: ran.append("a") or A.ActionResult(True, "a done"), A.RISK_CHANGE),
+            A.Tool("step_b", "b", obj, lambda args: ran.append("b") or A.ActionResult(True, "b done"), A.RISK_CHANGE),
+        ]
+        def consent(tool, args):
+            self.asked.append(tool.name); return True
+        b = A.ActionBroker(consent, cfg=S.Settings(trust_level=0), audit=A.Audit(), tools=fakes)
+        from eternity import routines as R
+        R.Routines().define("demo", [{"tool": "step_a", "args": {}}, {"tool": "step_b", "args": {}}])
+        res = b.execute("run_routine", {"name": "demo"})
+        self.assertTrue(res.ok, res.summary)
+        self.assertEqual(ran, ["a", "b"])
+        self.assertIn("step_a", self.asked)
+        self.assertIn("step_b", self.asked)
+
+    def test_run_routine_unknown_name_is_a_clear_miss(self):
+        b = self.broker(trust=2)
+        res = b.execute("run_routine", {"name": "nope"})
+        self.assertFalse(res.ok)
+        self.assertIn("no routine", res.summary.lower())
+
+    def test_define_and_list_routine_tools(self):
+        b = self.broker(trust=2)
+        r = b.execute("define_routine", {"name": "focus", "steps": [{"tool": "system_info", "args": {}}], "description": "check the box"})
+        self.assertTrue(r.ok, r.summary)
+        listed = b.execute("list_routines", {})
+        self.assertTrue(listed.ok)
+        self.assertIn("focus", json.dumps(listed.data).lower())
+
     def test_describe_call(self):
         t = A.default_tools()[0]
         self.assertIn("Memory", A.describe_call(t, {}))
