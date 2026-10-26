@@ -24,7 +24,7 @@ for f in $(curl -fsS "$BASE/usr/share/eternity/shell/" | grep -oE 'href="[A-Za-z
 done
 pull usr/share/eternity/shell/qmldir            # singletons are registered here (a new one needs it)
 pull usr/share/eternity/keys.toml
-for f in eternity-session eternity-lock eternity-supervise eternity-ask eternity-settings eternity-monitor eternity-launcher eternity-voice; do
+for f in eternity-session eternity-lock eternity-supervise eternity-ask eternity-settings eternity-monitor eternity-launcher eternity-voice eternity-say; do
     curl -fsS --head "$BASE/usr/local/bin/$f" >/dev/null 2>&1 && pull "usr/local/bin/$f" && chmod 755 "/usr/local/bin/$f"
 done
 pull usr/share/eternity/hyprland.base.conf

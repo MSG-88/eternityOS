@@ -16,7 +16,7 @@ import shutil
 import subprocess
 import tempfile
 import wave
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 RATE = 16000
 FRAME_MS = 20
@@ -134,6 +134,78 @@ def listen(max_s: float = 15.0, on_state=None) -> str:
     finally:
         try:
             os.unlink(path)
+        except OSError:
+            pass
+
+
+# ----------------------------------------------------------------------------- speech (TTS)
+# Eternity speaks its answers with piper (on this device, offline). The voice setting picks a model:
+# calm and bright are two bundled piper voices (roles tts-calm / tts-bright in ai/models.manifest).
+TTS_VOICES = {"calm": "tts-calm.onnx", "bright": "tts-bright.onnx"}
+_MD = re.compile(r"```.*?```", re.S)          # fenced code blocks
+_INLINE = re.compile(r"[`*_#>|]")             # markdown punctuation
+_URL = re.compile(r"https?://\S+")
+_LINK = re.compile(r"\[([^\]]+)\]\([^)]+\)")   # [text](url) -> text
+
+
+def clean_for_speech(text: str) -> str:
+    """Turn a markdown answer into something worth hearing: drop code blocks, markdown punctuation
+    and raw URLs so the voice does not read '`', '*' or a long link aloud."""
+    text = _MD.sub(" (code) ", text)
+    text = _LINK.sub(r"\1", text)
+    text = _URL.sub(" a link ", text)
+    text = _INLINE.sub("", text)
+    return " ".join(text.split()).strip()
+
+
+def tts_model(voice: str, models_dir: str = MODELS_DIR) -> Optional[str]:
+    """Path to the piper voice for a setting (calm/bright), or None when off/unknown/missing."""
+    name = TTS_VOICES.get((voice or "off").lower())
+    if not name:
+        return None
+    path = os.path.join(models_dir, name)
+    return path if os.path.exists(path) else None
+
+
+def _player() -> Optional[List[str]]:
+    for cand in (["pw-play"], ["paplay"], ["aplay", "-q"]):
+        if shutil.which(cand[0]):
+            return cand
+    return None
+
+
+def say(text: str, voice: str = "calm", piper: Optional[str] = None, player: Optional[str] = None,
+        models_dir: str = MODELS_DIR, on_state=None) -> bool:
+    """Speak text on this device with piper. Returns False when voice is off or there is nothing to
+    say; raises VoiceError when the voice is on but piper or the model is missing."""
+    text = clean_for_speech(text or "")
+    model = tts_model(voice, models_dir)
+    if not text or voice == "off" or model is None and voice not in TTS_VOICES:
+        return False
+    if model is None:
+        raise VoiceError(f"speech voice '{voice}' is not installed (model missing in {models_dir})")
+    binary = piper or shutil.which("piper")
+    if not binary or not os.path.exists(binary):
+        raise VoiceError("text-to-speech is not installed (piper missing)")
+    play = [player] if player else _player()
+    if not play:
+        raise VoiceError("no audio player (pw-play/paplay/aplay missing)")
+    if on_state:
+        on_state("speaking")
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        wav = f.name
+    try:
+        synth = subprocess.run([binary, "-m", model, "-f", wav], input=text, text=True,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
+        if synth.returncode != 0 or not os.path.exists(wav):
+            raise VoiceError("piper failed to synthesize speech")
+        subprocess.run(play + [wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+        return True
+    except (OSError, subprocess.SubprocessError) as e:
+        raise VoiceError(f"speech failed: {e}")
+    finally:
+        try:
+            os.unlink(wav)
         except OSError:
             pass
 

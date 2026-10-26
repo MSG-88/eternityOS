@@ -1,0 +1,25 @@
+#!/bin/sh
+# Speak text on this device with Eternity's voice (piper). Reads arguments or stdin.
+#   eternity-say "hello"      |   echo "hello" | eternity-say      |   eternity-say --voice bright "hi"
+exec /usr/bin/python3 - "$@" <<'PY'
+import sys
+sys.path.insert(0, "/usr/lib/eternity/py")
+from eternity import voice as V, settings as S
+args = sys.argv[1:]
+voice = None
+if args and args[0] == "--voice":
+    voice = args[1]; args = args[2:]
+text = " ".join(args) if args else sys.stdin.read()
+if voice is None:
+    try:
+        voice = S.load().voice
+    except Exception:
+        voice = "calm"
+if voice == "off":
+    voice = "calm"   # explicit request to speak overrides the "silent" setting
+try:
+    spoke = V.say(text, voice)
+    sys.exit(0 if spoke else 1)
+except V.VoiceError as e:
+    print(e, file=sys.stderr); sys.exit(1)
+PY

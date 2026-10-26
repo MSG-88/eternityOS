@@ -171,6 +171,7 @@ class Daemon:
         self.run: Optional[dict] = None
         self.agent: Optional[G.Agent] = None
         self.listener: Callable = V.listen          # voice input (tests inject a fake)
+        self.speaker: Callable = V.say               # voice output / TTS (tests inject a fake)
         self.runner: Callable[[str], object] = lambda cmd: subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self._listening = False
         self.locked = False
@@ -588,12 +589,14 @@ class Daemon:
 
     def _ask_worker(self, run_id: str, text: str) -> None:
         metrics = None
+        answer = []
         try:
             agent = self._make_agent()
             for kind, payload in agent.ask(text):
                 if self.run and self.run.get("cancelled"):
                     break
                 if kind == "text":
+                    answer.append(str(payload))
                     self.emit("ask.text", {"run_id": run_id, "delta": payload})
                 elif kind == "status":
                     self.emit("ask.status", {"run_id": run_id, "text": str(payload)})
@@ -612,6 +615,20 @@ class Daemon:
         if self.run and self.run["id"] == run_id:
             self.run["done"] = True
         self.emit("ask.done", data)
+        self._speak_answer(run_id, "".join(answer))
+
+    def _speak_answer(self, run_id: str, text: str) -> None:
+        """Speak the finished answer aloud when a voice is enabled (Settings > voice)."""
+        cfg = self._fresh_cfg()
+        if cfg.voice == "off" or not text.strip():
+            return
+        def worker():
+            try:
+                self.speaker(text, cfg.voice, on_state=lambda st: self.emit("voice.state", {"state": st, "run_id": run_id}))
+                self.emit("voice.state", {"state": "spoke", "run_id": run_id})
+            except Exception as e:  # noqa: BLE001  (speech must never break an answer)
+                self.emit("voice.state", {"state": "error", "run_id": run_id, "text": str(e)})
+        threading.Thread(target=worker, daemon=True).start()
 
     # -- voice (push-to-talk: Super+V, eternity-voice) ---------------------------------
     def m_voice_listen(self, params: dict) -> dict:

@@ -1,0 +1,28 @@
+#!/bin/sh
+# Text-to-speech on the device: install piper (piper-tts) into the AI venv and bundle two small
+# English voices so Eternity can speak its answers (Settings > Voice: calm / bright). Best-effort:
+# a network hiccup here must not fail a 40-minute build (voice output degrades to silent).
+set -u
+VENV=/opt/eternity/venv
+MODELS=/opt/eternity/models
+mkdir -p "$MODELS"
+
+if [ -x "$VENV/bin/pip" ]; then
+    "$VENV/bin/pip" install --no-input piper-tts 2>&1 | tail -3 || echo "piper-tts pip install failed (voice output will be off)"
+fi
+# a stable name on PATH for the shell and voice.py (shutil.which('piper'))
+if [ -x "$VENV/bin/piper" ]; then
+    printf '#!/bin/sh\nexec %s/bin/piper "$@"\n' "$VENV" > /usr/local/bin/piper
+    chmod 755 /usr/local/bin/piper
+fi
+
+# Two voices from rhasspy/piper-voices (MIT). calm = amy (medium), bright = ryan (medium).
+BASE=https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US
+dl() { curl -L --fail --retry 4 --retry-delay 5 -s -o "$2" "$1" || { echo "voice fetch failed: $1"; rm -f "$2"; return 1; }; }
+dl "$BASE/amy/medium/en_US-amy-medium.onnx"        "$MODELS/tts-calm.onnx"      && \
+dl "$BASE/amy/medium/en_US-amy-medium.onnx.json"   "$MODELS/tts-calm.onnx.json" || echo "calm voice incomplete"
+dl "$BASE/ryan/medium/en_US-ryan-medium.onnx"      "$MODELS/tts-bright.onnx"      && \
+dl "$BASE/ryan/medium/en_US-ryan-medium.onnx.json" "$MODELS/tts-bright.onnx.json" || echo "bright voice incomplete"
+
+command -v piper >/dev/null && echo "piper installed: $(piper --version 2>/dev/null || echo yes)" || echo "piper not installed (voice output off)"
+ls -la "$MODELS"/tts-*.onnx 2>/dev/null || true

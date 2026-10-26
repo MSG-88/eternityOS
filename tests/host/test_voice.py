@@ -1,4 +1,5 @@
-"""Voice input: silence-bounded capture, whisper.cpp transcription, direct voice commands.
+"""Voice: silence-bounded capture, whisper.cpp transcription, direct voice commands, and
+local text-to-speech (piper) so Eternity speaks its answers.
 Run: python3 -m unittest tests/host/test_voice.py"""
 import array
 import math
@@ -27,11 +28,16 @@ def frames(data: bytes, frame_bytes: int = V.FRAME_BYTES):
         yield data[i:i + frame_bytes]
 
 
+def write_exec(path: str, body: str) -> None:
+    with open(path, "w", newline="\n") as f:
+        f.write(body)
+    os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC)
+
+
 class SegmentTest(unittest.TestCase):
     def test_capture_ends_after_silence_that_follows_speech(self):
         stream = pcm(0.3, 0) + pcm(1.0, 8000) + pcm(1.5, 0) + pcm(5.0, 8000)
         got = V.capture(frames(stream), max_s=10.0, silence_s=0.8)
-        # the lead-in, the speech and the closing silence; never the second burst
         self.assertGreater(len(got), len(pcm(1.0, 8000)))
         self.assertLess(len(got), len(pcm(0.3, 0) + pcm(1.0, 8000) + pcm(1.5, 0)) + V.FRAME_BYTES)
 
@@ -55,15 +61,67 @@ class TranscribeTest(unittest.TestCase):
     def test_transcribe_returns_the_text_whisper_prints(self):
         with tempfile.TemporaryDirectory() as tmp:
             fake = os.path.join(tmp, "whisper-cli")
-            with open(fake, "w") as f:
-                f.write("#!/bin/sh\necho ' Open the terminal, please.'\necho ''\n")
-            os.chmod(fake, os.stat(fake).st_mode | stat.S_IEXEC)
-            model = os.path.join(tmp, "stt.bin"); open(model, "wb").close()
+            write_exec(fake, "#!/bin/sh\necho ' Open the terminal, please.'\necho ''\n")
+            model = os.path.join(tmp, "stt.bin")
+            open(model, "wb").close()
             self.assertEqual(V.transcribe("/tmp/x.wav", binary=fake, model=model), "Open the terminal, please.")
 
     def test_transcribe_without_whisper_raises_not_installed(self):
         with self.assertRaises(V.VoiceError):
             V.transcribe("/tmp/x.wav", binary="/nonexistent/whisper-cli", model="/nonexistent/stt.bin")
+
+
+class SpeechTest(unittest.TestCase):
+    def test_clean_for_speech_strips_markdown_and_shortens_urls(self):
+        out = V.clean_for_speech("**Done.** Running `xfwm4` — see https://example.com/a/b for more. # Heading")
+        self.assertNotIn("*", out)
+        self.assertNotIn("`", out)
+        self.assertNotIn("#", out)
+        self.assertNotIn("https://", out)
+        self.assertIn("Done.", out)
+        self.assertIn("xfwm4", out)
+
+    def test_tts_model_maps_voices_and_handles_off(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for f in ("tts-calm.onnx", "tts-bright.onnx"):
+                open(os.path.join(tmp, f), "wb").close()
+            self.assertEqual(V.tts_model("calm", models_dir=tmp), os.path.join(tmp, "tts-calm.onnx"))
+            self.assertEqual(V.tts_model("bright", models_dir=tmp), os.path.join(tmp, "tts-bright.onnx"))
+            self.assertIsNone(V.tts_model("off", models_dir=tmp))
+            self.assertIsNone(V.tts_model("calm", models_dir="/nonexistent"))
+
+    def test_say_runs_piper_then_plays_and_returns_true(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            open(os.path.join(tmp, "tts-calm.onnx"), "wb").close()
+            log = os.path.join(tmp, "calls.log")
+            piper = os.path.join(tmp, "piper")
+            player = os.path.join(tmp, "play")
+            piper_body = (
+                "#!/bin/sh\n"
+                "echo piper \"$@\" >> " + repr(log) + "\n"
+                "out=''; prev=''\n"
+                "for a in \"$@\"; do "
+                "if [ \"$prev\" = \"-f\" ] || [ \"$prev\" = \"--output_file\" ] || [ \"$prev\" = \"--output-file\" ]; "
+                "then out=\"$a\"; fi; prev=\"$a\"; done\n"
+                "[ -n \"$out\" ] && : > \"$out\"\n"
+            )
+            write_exec(piper, piper_body)
+            write_exec(player, "#!/bin/sh\necho play \"$@\" >> " + repr(log) + "\n")
+            ok = V.say("Hello there", "calm", piper=piper, player=player, models_dir=tmp)
+            self.assertTrue(ok)
+            calls = open(log).read()
+            self.assertIn("piper", calls)
+            self.assertIn("tts-calm.onnx", calls)
+            self.assertIn("play", calls)
+
+    def test_say_off_is_a_noop(self):
+        self.assertFalse(V.say("Hello", "off", models_dir="/nonexistent"))
+
+    def test_say_without_piper_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            open(os.path.join(tmp, "tts-calm.onnx"), "wb").close()
+            with self.assertRaises(V.VoiceError):
+                V.say("Hi", "calm", piper="/nonexistent/piper", player="/bin/true", models_dir=tmp)
 
 
 class IntentTest(unittest.TestCase):
@@ -77,7 +135,7 @@ class IntentTest(unittest.TestCase):
 
     def test_everything_else_is_a_question(self):
         self.assertIsNone(V.intent("how much disk space is left?"))
-        self.assertIsNone(V.intent("open the terminal and list my files"))  # a compound request goes to the assistant
+        self.assertIsNone(V.intent("open the terminal and list my files"))
 
 
 if __name__ == "__main__":

@@ -155,6 +155,31 @@ class TestAsk(Base):
         self.assertEqual("".join(e["data"]["delta"] for e in events if e["event"] == "ask.text"), "Saving. Done.")
         self.assertIn("removed", self.c.call("ask.undo")["message"])
 
+    def test_answer_is_spoken_when_a_voice_is_on(self):
+        spoken = []
+        self.d.cfg.voice = "calm"
+        self.d.speaker = lambda text, voice, on_state=None: spoken.append((text, voice))
+        sub = Subscriber(self.sock_path)
+        self.c.call("ask.start", text="save a note")
+        ev = sub.wait("consent.request")
+        self.c.call("consent.reply", consent_id=ev["consent_id"], ok=True)
+        sub.collect_until("voice.state", pred=lambda e: e["data"]["state"] in ("spoke", "error"))
+        self.assertEqual(len(spoken), 1)
+        self.assertIn("Saving", spoken[0][0])
+        self.assertEqual(spoken[0][1], "calm")
+
+    def test_answer_is_not_spoken_when_voice_is_off(self):
+        spoken = []
+        self.d.cfg.voice = "off"
+        self.d.speaker = lambda text, voice, on_state=None: spoken.append(text)
+        sub = Subscriber(self.sock_path)
+        self.c.call("ask.start", text="save a note")
+        ev = sub.wait("consent.request")
+        self.c.call("consent.reply", consent_id=ev["consent_id"], ok=True)
+        events = sub.collect_until("ask.done")
+        self.assertEqual(spoken, [])
+        self.assertNotIn("voice.state", [e["event"] for e in events])
+
     def test_memory_methods_and_asks_are_observed(self):
         r = self.c.call("memory.remember", text="I like tea")
         self.assertEqual(r["facts"], 1)

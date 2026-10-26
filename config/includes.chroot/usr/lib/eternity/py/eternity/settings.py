@@ -48,7 +48,7 @@ class Settings:
     proactive: bool = True               # proactive suggestions on the home screen
     on_device_only: bool = True          # when true, cloud providers are refused
     telemetry: bool = False              # there is no telemetry; kept false and shown as such
-    voice: str = "off"                   # off | calm | bright (no TTS engine is bundled yet)
+    voice: str = "off"                   # off | calm | bright (piper TTS: Eternity speaks its answers)
     unlock_methods: List[str] = field(default_factory=lambda: ["passphrase"])
     trust_level: int = 2                 # 0: confirm every action, 1: auto-run read-only ones, 2: act without asking (logged, undoable)
     first_run_done: bool = False
