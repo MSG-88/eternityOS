@@ -106,6 +106,12 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(len(prov.calls), G.MAX_TOOL_ROUNDS)
         self.assertEqual(events[-1][0], "done")
 
+    def test_agent_prompt_describes_the_jarvis_capabilities(self):
+        s = G.system_prompt(S.Settings(agent_mode=True))
+        for word in ("routine", "reminder", "brightness", "workspace", "speak"):
+            self.assertIn(word, s.lower())
+        self.assertNotIn("routine", G.system_prompt(S.Settings(agent_mode=False)).lower())
+
     def test_os_knowledge_mentions_the_os(self):
         k = G.os_knowledge()
         self.assertIn("CPU threads", k)

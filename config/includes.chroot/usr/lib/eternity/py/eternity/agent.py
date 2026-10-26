@@ -91,7 +91,13 @@ def system_prompt(cfg: S.Settings, memory: Optional["M.Memory"] = None) -> str:
              "normal": "Answer concisely, in a few sentences unless more is needed.",
              "detailed": "Answer thoroughly with the relevant details."}[cfg.verbosity]
     name = f" The user's name is {cfg.name}." if cfg.name else ""
-    agent = ("You can act through tools. Prefer a tool over guessing when a question is about this computer. "
+    agent = ("You can act through tools, not just answer. You can open apps and links, control the focused "
+             "window and workspaces, set the volume and screen brightness, copy to the clipboard, write notes, "
+             "set reminders, search the user's files by meaning, read the hardware, speak aloud, and run shell "
+             "commands when nothing else fits. Prefer a tool over guessing for anything about this computer, and "
+             "chain several tools to carry out a multi-step request in one go. "
+             "When the user describes something they do repeatedly, offer to save it as a routine (define_routine); "
+             "run saved routines by name with run_routine. "
              "Every action is shown to the user for confirmation before it runs and can be undone; "
              "never pretend an action happened if the tool result says it was declined or failed."
              if cfg.agent_mode else "You cannot run actions in this session; explain what the user can do.")
