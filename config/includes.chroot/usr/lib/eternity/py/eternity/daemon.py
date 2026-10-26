@@ -188,6 +188,7 @@ class Daemon:
             "settings.show": self.m_settings_show, "metrics.history": self.m_metrics_history, "metrics.processes": self.m_processes, "monitor.show": self.m_monitor_show, "theme.get": self.m_theme_get, "theme.set": self.m_theme_set, "theme.presets": self.m_theme_presets, "theme.apply_preset": self.m_theme_preset,
             "voice.listen": self.m_voice_listen,
             "memory.list": self.m_memory_list, "memory.remember": self.m_memory_remember, "memory.forget": self.m_memory_forget,
+            "routines.list": self.m_routines_list, "voice.say": self.m_voice_say,
             "notifications.store": self.m_notif_store, "notifications.recent": self.m_notif_recent, "notifications.seen": self.m_notif_seen, "osd.show": self.m_osd, "claude.sessions": self.m_claude_sessions, "claude.resume": self.m_claude_resume,
         }
         # methods answered on a worker thread because they block on the user or on slow probes
@@ -652,6 +653,26 @@ class Daemon:
         self._listening = True
         threading.Thread(target=self._voice_worker, daemon=True).start()
         return {"listening": True}
+
+    def m_routines_list(self, params: dict) -> dict:
+        items = M_RT.Routines().list()
+        return {"routines": [{"name": r["name"], "description": r.get("description", ""), "steps": len(r["steps"])} for r in items]}
+
+    def m_voice_say(self, params: dict) -> dict:
+        """Speak given text now (ask bar /say, or a test of the voice). Uses the chosen voice, or calm."""
+        text = str(params.get("text", "")).strip()
+        if not text:
+            raise DaemonError("nothing to say")
+        cfg = self._fresh_cfg()
+        voice = params.get("voice") or (cfg.voice if cfg.voice != "off" else "calm")
+        threading.Thread(target=lambda: self._say_safe(text, voice), daemon=True).start()
+        return {"saying": text[:80], "voice": voice}
+
+    def _say_safe(self, text: str, voice: str) -> None:
+        try:
+            self.speaker(text, voice)
+        except Exception as e:  # noqa: BLE001
+            self.emit("voice.state", {"state": "error", "text": str(e)})
 
     def _voice_worker(self) -> None:
         state = lambda st, **kw: self.emit("voice.state", {"state": st, **kw})  # noqa: E731

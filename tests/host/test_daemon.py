@@ -155,6 +155,25 @@ class TestAsk(Base):
         self.assertEqual("".join(e["data"]["delta"] for e in events if e["event"] == "ask.text"), "Saving. Done.")
         self.assertIn("removed", self.c.call("ask.undo")["message"])
 
+    def test_routines_list_and_voice_say_methods(self):
+        from eternity import routines as R
+        self.assertEqual(self.c.call("routines.list")["routines"], [])
+        R.Routines().define("evening", [{"tool": "open_app", "args": {"name": "x"}}], description="wind down")
+        rl = self.c.call("routines.list")["routines"]
+        self.assertEqual(rl[0]["name"], "evening")
+        self.assertEqual(rl[0]["steps"], 1)
+        said = []
+        self.d.speaker = lambda text, voice, on_state=None: said.append((text, voice))
+        self.d.cfg.voice = "bright"
+        r = self.c.call("voice.say", text="all set")
+        self.assertEqual(r["voice"], "bright")
+        import time as _t
+        for _ in range(50):
+            if said:
+                break
+            _t.sleep(0.02)
+        self.assertEqual(said[0], ("all set", "bright"))
+
     def test_routines_card_appears_once_a_routine_is_saved(self):
         from eternity import routines as R
         cards0 = self.c.call("cards.get")["cards"]
