@@ -676,3 +676,24 @@ SHELL RENDER: PASS), and was verified live on the Hyper-V installed system over 
   supervisor restarts it, the bar is back within 12 s. `tools/dev/e8restart.sh` restarts the daemon
   inside the session (the daemon is `python3 -c "...from eternity import daemon..."` under
   `eternity-supervise`; `e8pull.sh` calls it through `hyprctl dispatch exec` so it gets the session env).
+
+## GitHub trending survey (2026-10-26): local text-to-speech added
+
+Went through the day's GitHub trending list for anything useful to Eternity. The clear fit was
+**VoiceStudio** (a fully-local voice/TTS project): Eternity had speech *input* (whisper.cpp) but the
+assistant had no *voice*, and the `voice: off | calm | bright` setting was a no-op. Rather than bundle
+VoiceStudio's heavy GPU stack (voice cloning, dubbing), the same capability ships the right way for a
+small offline image via **piper**:
+- `eternity.voice.say()` cleans the markdown answer, runs `piper -m <voice>.onnx -f` and plays the WAV
+  through pw-play/paplay/aplay; `clean_for_speech()` strips code blocks, markdown and URLs; `tts_model()`
+  maps calm/bright to bundled voices.
+- The daemon speaks the finished answer when a voice is on (`_speak_answer`, `voice.state`
+  speaking/spoke), off by default; `eternity-say` speaks arbitrary text or stdin.
+- Hook `0530-piper-tts.hook.chroot` installs `piper-tts` into the AI venv (best-effort, so a network
+  hiccup never fails the build) and fetches two en_US voices (amy = calm, ryan = bright) into
+  `/opt/eternity/models` as `tts-calm.onnx` / `tts-bright.onnx`.
+- Host suite 174 green (5 voice + 2 daemon tests added). The engine and voices ship in build 16 and
+  get a live check on the VM then (build 15 has the STT half only).
+
+Other trending repos were dev-time Claude Code skills (hallmark, impeccable, cloudflare
+security-audit, claude-seo) or unrelated (cindy, microduck, TradingAgents, thinkrail, coolify).

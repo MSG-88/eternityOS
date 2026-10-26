@@ -134,7 +134,8 @@ Recorded verbatim in substance; status marks as above. Plan: `docs/superpowers/s
   own navigation. ◐ Build 15: Jarvis-style answers run as plain text down the right-hand column
   while the presence slides left and the orbit shrinks so nothing overlaps the text; voice input
   (push-to-talk Super+V) with the Ask bar narrating Listening / Transcribing / the heard text.
-  ◐ Build 13 (slice 1): the Eternity session on Hyprland with the Quickshell shell
+  ◐ Build 16 (planned): voice output — Eternity speaks its answers with piper TTS (Settings > Voice:
+  calm / bright), completing the Jarvis voice loop. ◐ Build 13 (slice 1): the Eternity session on Hyprland with the Quickshell shell
   (strip, presence, Ask bar, consent, lock) at the design's geometry, 125 % scale, next to XFCE.
   Remaining phase 3: leave the XFCE/X11 desktop for a Wayland session (Hyprland from
   trixie-backports) with an Eternity shell written in GTK 4 + layer-shell that renders the
