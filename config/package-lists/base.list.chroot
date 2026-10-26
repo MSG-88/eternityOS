@@ -15,6 +15,9 @@ firmware-misc-nonfree
 firmware-intel-graphics
 firmware-intel-sound
 firmware-sof-signed
+# NVIDIA GSP firmware for nouveau — the RTX 5080 (Blackwell GB203) panel on the ROG stays black
+# after GRUB without nvidia/gb203/gsp/*-570.144.bin. The backports build carries gb203 (pinned).
+firmware-nvidia-graphics
 amd64-microcode
 intel-microcode
 network-manager

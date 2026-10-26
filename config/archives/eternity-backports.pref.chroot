@@ -4,3 +4,10 @@
 Package: hyprland quickshell hypridle hyprlock hyprpaper xdg-desktop-portal-hyprland hyprland-protocols hyprutils* hyprlang* hyprcursor* hyprgraphics* hyprwire* aquamarine* libaquamarine* libhypr* libudis86-0 wayland-protocols libxkbcommon* libxkbregistry* xkb-data
 Pin: release n=trixie-backports
 Pin-Priority: 600
+
+# NVIDIA GSP firmware for the RTX 5080 (Blackwell GB203): trixie's firmware-nvidia-graphics
+# (20250410-2) only covers up to ga10x/ad10x; trixie-backports (20260916-1~bpo13+1) adds gb203,
+# which nouveau 7.2 needs to mode-set the ROG's panel. Without it the screen goes black after GRUB.
+Package: firmware-nvidia-graphics firmware-nvidia-gsp
+Pin: release n=trixie-backports
+Pin-Priority: 600
