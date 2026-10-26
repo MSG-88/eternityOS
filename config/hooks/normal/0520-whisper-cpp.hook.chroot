@@ -12,7 +12,7 @@ cmake -B build -G Ninja \
     -DBUILD_SHARED_LIBS=OFF \
     -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON \
     -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON -DWHISPER_CURL=OFF
-cmake --build build -j"$(nproc)" --target whisper-cli
+cmake --build build -j"$(( ($(nproc)+1)/2 ))" --target whisper-cli   # half the cores (thermal/RAM headroom)
 install -m 755 build/bin/whisper-cli /usr/local/bin/whisper-cli
 echo "$TAG" > /usr/local/share/whisper-cpp.version
 cd /

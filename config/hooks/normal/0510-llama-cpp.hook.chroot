@@ -12,7 +12,7 @@ cmake -B build -G Ninja \
     -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON \
     -DLLAMA_CURL=OFF \
     -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_SERVER=ON
-cmake --build build -j"$(nproc)"
+cmake --build build -j"$(( ($(nproc)+1)/2 ))"   # half the cores: less heat and lower peak RAM so the build host does not overload/trip
 cmake --install build --prefix /usr/local
 ldconfig
 echo "$TAG" > /usr/local/share/llama-cpp.version
