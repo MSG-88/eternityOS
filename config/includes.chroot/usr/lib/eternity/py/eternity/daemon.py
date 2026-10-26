@@ -42,6 +42,7 @@ from . import agent as G
 from . import memory as M
 from . import cards as C
 from . import providers as P
+from . import routines as M_RT
 from . import settings as S
 from . import voice as V
 
@@ -482,7 +483,9 @@ class Daemon:
 
     def m_cards(self, params: dict) -> dict:
         from . import theme
-        wanted = (theme.load().get("layout") or {}).get("cards") or ["today", "system", "eternity", "recent", "install", "focus", "nowplaying"]
+        wanted = (theme.load().get("layout") or {}).get("cards") or ["today", "system", "eternity", "routines", "recent", "install", "focus", "nowplaying"]
+        if "routines" not in wanted:
+            wanted = wanted + ["routines"]   # saved routines surface on the home screen whatever the theme layout lists
         out = []
         for cid in wanted:
             card = self._card(cid)
@@ -517,6 +520,17 @@ class Daemon:
             if not C.live_session():
                 return None
             return {"id": cid, "kicker": "Live session", "title": "Install Eternity 08", "body": "Keep everything: install next to Windows or on the whole disk.", "meta": "eternity-install", "actions": ["install"]}
+        if cid == "routines":
+            try:
+                items = M_RT.Routines().list()
+            except Exception:  # noqa: BLE001
+                items = []
+            if not items:
+                return None
+            names = [x["name"] for x in items]
+            return {"id": cid, "kicker": "Routines", "title": names[0],
+                    "body": "\n".join(names[1:4]) if len(names) > 1 else "say “run " + names[0] + "”",
+                    "meta": f"{len(items)} saved · run by voice or command", "actions": ["ask"]}
         if cid == "focus":
             if not cfg.dnd:
                 return None

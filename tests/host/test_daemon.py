@@ -155,6 +155,16 @@ class TestAsk(Base):
         self.assertEqual("".join(e["data"]["delta"] for e in events if e["event"] == "ask.text"), "Saving. Done.")
         self.assertIn("removed", self.c.call("ask.undo")["message"])
 
+    def test_routines_card_appears_once_a_routine_is_saved(self):
+        from eternity import routines as R
+        cards0 = self.c.call("cards.get")["cards"]
+        self.assertNotIn("routines", [c["id"] for c in cards0])
+        R.Routines().define("morning", [{"tool": "open_app", "args": {"name": "firefox"}}])
+        cards1 = self.c.call("cards.get")["cards"]
+        card = next((c for c in cards1 if c["id"] == "routines"), None)
+        self.assertIsNotNone(card)
+        self.assertIn("morning", card["title"].lower())
+
     def test_answer_is_spoken_when_a_voice_is_on(self):
         spoken = []
         self.d.cfg.voice = "calm"
